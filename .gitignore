@@ -1,0 +1,8 @@
+node_modules
+dist
+.DS_Store
+# contexto de diseño de la herramienta, no del sitio
+PRODUCT.md
+DESIGN.md
+DESIGN.json
+.impeccable
