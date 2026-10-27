@@ -6,7 +6,15 @@ Sustentación del proyecto final de **ST1613 Aprendizaje de Máquina Aplicado** 
 - Notebook ejecutado de cero: [`proyecto.html`](public/proyecto.html) y [`proyecto.ipynb`](public/proyecto.ipynb).
 - Respaldo en PDF, una lámina por página: [`sustentacion.pdf`](public/sustentacion.pdf).
 
-## Cómo se usa
+## Tablero (rama `tablero`)
+
+Vista por defecto en esta rama: un tablero de dos carriles (arriba la operación, abajo el laboratorio) con 7 escenas y 33 pasos, descrito en `PROPUESTA-tablero.md`. Un paquete recorre cada ruta y la deja encendida; lo rechazado se detiene en rojo con una placa. Las láminas de artículo siguen disponibles como plan B: tecla `L` o `?vista=laminas`.
+
+- Guion y cifras: `src/tablero-datos.js` (todo sale de `datos.js`). Dibujo y animación: `src/tablero.jsx` y `src/tablero.css`.
+- Teclas: `→` `←` paso, `S` preguntas, `N` guion, `T` reloj, `L` tablero o láminas, `F` pantalla completa, `?` ayuda.
+- Pendiente (TODO): «5 folds × 4 repeticiones» está tecleado en `tablero-datos.js` porque resultados.json solo trae `folds = 20`.
+
+## Cómo se usa (láminas)
 
 Siete láminas más un material suplementario con las preguntas probables. Cada lámina se arma paso a paso con el control remoto: un clic, una afirmación (23 pasos en total). En la lámina del método, un paquete recorre los seis pasos y la ruta se enciende detrás de él; la validación anidada rota fold por fold hasta la evaluación 20. Los cuadros junto al contador indican cuántos pasos le quedan a la lámina.
 

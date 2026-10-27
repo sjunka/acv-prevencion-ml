@@ -2,17 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { laminas, preguntas } from './content'
 import { Foot, Lamina, Portada } from './slides'
 import { Suplemento, TECLAS } from './suplemento'
+import { EscenaTablero } from './tablero'
+import { ESCENAS } from './tablero-datos'
 
-const TOTAL = laminas.length // láminas numeradas 1..TOTAL; la 0 es la portada
+const TOTAL = laminas.length // escenas o láminas numeradas 1..TOTAL (7 en ambos modos); la 0 es la portada
 const PRESUPUESTO = 600 // segundos de exposición
 
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b)
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
-const nPasos = (i) => (i >= 1 ? laminas[i - 1].pasos.length : 1)
-const ultimo = (i) => nPasos(i) - 1
-
+// Dos vistas con la misma estructura: el tablero (por defecto) y las láminas de artículo (plan B: ?vista=laminas o tecla L).
+const listaDe = (m) => (m === 'tablero' ? ESCENAS : laminas)
+const nPasos = (m, i) => (i >= 1 ? listaDe(m)[i - 1].pasos.length : 1)
+const ultimo = (m, i) => nPasos(m, i) - 1
+const MODO0 = new URLSearchParams(window.location.search).get('vista') === 'laminas' ? 'laminas' : 'tablero'
 // #3 abre la lámina 3 en su primer paso y #3.2 en el segundo; #s4 abre la pregunta 4 y #st la tabla.
-function leerHash() {
+function leerHash(m) {
   const h = window.location.hash.replace('#', '')
   if (h.startsWith('s')) {
     const vuelve = { i: 1, paso: 0 }
@@ -24,7 +28,7 @@ function leerHash() {
   const n = parseInt(a, 10)
   const i = Number.isFinite(n) ? clamp(n, 0, TOTAL) : 0
   const k = parseInt(b, 10)
-  return { sup: false, i, paso: Number.isFinite(k) ? clamp(k - 1, 0, ultimo(i)) : 0, animar: false }
+  return { sup: false, i, paso: Number.isFinite(k) ? clamp(k - 1, 0, ultimo(m, i)) : 0, animar: false }
 }
 const hashDe = (p) => (p.sup ? (p.tab === 'tabla' ? '#st' : `#s${p.q + 1}`) : p.paso > 0 ? `#${p.i}.${p.paso + 1}` : `#${p.i}`)
 
@@ -43,7 +47,10 @@ function useMedia(q) {
 const vistaImprimir = new URLSearchParams(window.location.search).get('vista') === 'imprimir'
 
 export default function App() {
-  const [pos, setPos] = useState(leerHash)
+  const [modo, setModo] = useState(MODO0)
+  const modoRef = useRef(modo)
+  modoRef.current = modo
+  const [pos, setPos] = useState(() => leerHash(MODO0))
   const [notas, setNotas] = useState(false)
   const [reloj, setReloj] = useState(false)
   const [ayuda, setAyuda] = useState(false)
@@ -51,7 +58,7 @@ export default function App() {
   const [, setTic] = useState(0)
   const [imprimiendo, setImprimiendo] = useState(false)
   const angosta = useMedia('(max-width: 900px), (max-aspect-ratio: 1/1)')
-  const doc = angosta && !vistaImprimir // el PDF sale con la composición de lámina aunque la ventana sea angosta
+  const doc = angosta && !vistaImprimir && modo === 'laminas' // el PDF sale con la composición de lámina aunque la ventana sea angosta
   const posRef = useRef(pos)
   posRef.current = pos
 
@@ -60,7 +67,7 @@ export default function App() {
     if (window.location.hash !== hashDe(pos)) window.history.replaceState(null, '', hashDe(pos))
   }, [pos])
   useEffect(() => {
-    const f = () => setPos(leerHash())
+    const f = () => setPos(leerHash(modoRef.current))
     window.addEventListener('hashchange', f)
     return () => window.removeEventListener('hashchange', f)
   }, [])
@@ -92,11 +99,11 @@ export default function App() {
     setPos((p) => {
       if (p.sup) return p
       if (d > 0) {
-        if (p.paso < ultimo(p.i)) return { ...p, paso: p.paso + 1, animar: true }
+        if (p.paso < ultimo(modoRef.current, p.i)) return { ...p, paso: p.paso + 1, animar: true }
         return p.i < TOTAL ? { sup: false, i: p.i + 1, paso: 0, animar: true } : p
       }
       if (p.paso > 0) return { ...p, paso: p.paso - 1, animar: false }
-      return p.i > 0 ? { sup: false, i: p.i - 1, paso: ultimo(p.i - 1), animar: false } : p
+      return p.i > 0 ? { sup: false, i: p.i - 1, paso: ultimo(modoRef.current, p.i - 1), animar: false } : p
     })
   }, [])
   const abrirSup = useCallback(() => {
@@ -118,6 +125,12 @@ export default function App() {
         setAyuda(false)
         setNotas(false)
         if (p.sup) cerrarSup()
+        return
+      }
+      if (k === 'l') {
+        const m = modoRef.current === 'tablero' ? 'laminas' : 'tablero'
+        setModo(m)
+        setPos(p.sup ? p : { sup: false, i: p.i, paso: 0, animar: false })
         return
       }
       if (k === 'f') {
@@ -151,7 +164,7 @@ export default function App() {
         e.preventDefault()
         ir(-1)
       } else if (k === 'Home') setPos({ sup: false, i: 0, paso: 0, animar: false })
-      else if (k === 'End') setPos({ sup: false, i: TOTAL, paso: ultimo(TOTAL), animar: false })
+      else if (k === 'End') setPos({ sup: false, i: TOTAL, paso: ultimo(modoRef.current, TOTAL), animar: false })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -175,7 +188,8 @@ export default function App() {
   )
 
   const todas = doc || imprimiendo || vistaImprimir
-  const actual = !pos.sup && pos.i >= 1 ? laminas[pos.i - 1] : null
+  const lista = listaDe(modo)
+  const actual = !pos.sup && pos.i >= 1 ? lista[pos.i - 1] : null
 
   // En vista de documento o al imprimir, cada lámina va completa (último paso) y sin animación.
   const lamina = (i, paso, animar) => (
@@ -204,7 +218,11 @@ export default function App() {
       ) : pos.i === 0 ? (
         <Portada onStart={() => ir(1)} />
       ) : (
-        lamina(pos.i - 1, pos.paso, pos.animar)
+        modo === 'tablero' ? (
+          <EscenaTablero e={pos.i - 1} paso={pos.paso} animar={pos.animar} foot={footDe(ESCENAS[pos.i - 1], pos.i, pos.paso)} />
+        ) : (
+          lamina(pos.i - 1, pos.paso, pos.animar)
+        )
       )}
 
       {/* Para lectores de pantalla: qué agrega cada paso (la lámina no lleva más texto) */}
@@ -231,7 +249,7 @@ export default function App() {
         <aside className="hud ayuda" aria-label="Atajos de teclado">
           <div><kbd>→</kbd> <kbd>←</kbd> paso siguiente y anterior (también clicker)</div>
           <div><kbd>S</kbd> material suplementario · <kbd>1</kbd>-<kbd>0</kbd> <kbd>A</kbd>-<kbd>E</kbd> abren cada pregunta</div>
-          <div><kbd>N</kbd> guion de la lámina</div>
+          <div><kbd>N</kbd> guion de la escena · <kbd>L</kbd> cambia entre tablero y láminas</div>
           <div><kbd>T</kbd> reloj de 10 minutos · <kbd>R</kbd> reiniciar</div>
           <div><kbd>F</kbd> pantalla completa · <kbd>Esc</kbd> cerrar</div>
         </aside>
