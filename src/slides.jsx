@@ -1,6 +1,9 @@
+import { useRef } from 'react'
 import { fases, laminas, portada } from './content'
-import { Campo, Captura, Edad, Matriz, Metodo, Prueba, Tira } from './figs'
+import { Campo, Captura, Edad, Matriz, Metodo, Prueba, Tira, guiones } from './figs'
 import { datos, dec, grupo, miles, operacion, pct, pesoEdad, recallAl, regla, reglaTrain } from './datos'
+import { animarPaso, detener } from './motion'
+import { B, PasoCtx, useAntesDePintar } from './paso'
 
 const Chevron = ({ d }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -8,8 +11,8 @@ const Chevron = ({ d }) => (
   </svg>
 )
 
-// Riel de cinco fases: la audiencia siempre sabe en cuál va
-export function Foot({ fase, n, total, tiempo, onPrev, onNext, onSup }) {
+// Riel de cinco fases: la audiencia siempre sabe en cuál va. Los cuadros junto al contador son los pasos de la lámina.
+export function Foot({ fase, n, total, paso, pasos, tiempo, onPrev, onNext, onSup }) {
   const k = fases.findIndex((f) => f.id === fase)
   return (
     <footer className="foot">
@@ -22,16 +25,21 @@ export function Foot({ fase, n, total, tiempo, onPrev, onNext, onSup }) {
       </ol>
       <div className="nav">
         {tiempo && <span className="tm">{tiempo}</span>}
+        <span className="pips" aria-hidden="true">
+          {Array.from({ length: pasos }, (_, i) => (
+            <i key={i} className={i <= paso ? 'on' : undefined} />
+          ))}
+        </span>
         <span>
           {n} / {total}
         </span>
         <button className="link-s" onClick={onSup}>
           Suplemento
         </button>
-        <button className="btn" aria-label="Lámina anterior" onClick={onPrev}>
+        <button className="btn" aria-label="Anterior" onClick={onPrev}>
           <Chevron d="M15 5l-7 7 7 7" />
         </button>
-        <button className="btn" aria-label="Lámina siguiente" onClick={onNext} disabled={n >= total}>
+        <button className="btn" aria-label="Siguiente" onClick={onNext} disabled={n >= total && paso >= pasos - 1}>
           <Chevron d="M9 5l7 7-7 7" />
         </button>
       </div>
@@ -39,7 +47,8 @@ export function Foot({ fase, n, total, tiempo, onPrev, onNext, onSup }) {
   )
 }
 
-export function Portada({ onStart }) {
+// Al imprimir no hay animación: el campo debe estar completo en el PDF.
+export function Portada({ onStart, animar = true }) {
   return (
     <section className="plate cover" aria-label="Portada">
       <div className="stage">
@@ -52,7 +61,7 @@ export function Portada({ onStart }) {
             <span>{portada.fecha}</span>
           </p>
         </div>
-        <Campo />
+        <Campo animar={animar} />
         <button className="btn go" onClick={onStart}>
           Comenzar
         </button>
@@ -61,13 +70,18 @@ export function Portada({ onStart }) {
   )
 }
 
-function Plate({ l, n, dek, legend, foot, children }) {
+// El subtítulo (dek) aparece en el paso dekK: en varias láminas cierra el razonamiento de la figura.
+function Plate({ l, n, dek, dekK = 0, legend, foot, refEl, children }) {
   return (
-    <section className="plate" aria-label={`Fig. ${n}: ${l.titulo}`}>
+    <section ref={refEl} className="plate" aria-label={`Fig. ${n}: ${l.titulo}`}>
       <div className="stage">
         <div className="head">
           <h2 className="claim">{l.titulo}</h2>
-          {dek && <p className="dek">{dek}</p>}
+          {dek && (
+            <B as="p" k={dekK} className="dek">
+              {dek}
+            </B>
+          )}
         </div>
         <div className="fig">{children}</div>
         {legend && (
@@ -82,18 +96,29 @@ function Plate({ l, n, dek, legend, foot, children }) {
   )
 }
 
-export function Lamina({ l, n, foot }) {
+// `paso` es el paso que se ve; con `animar`, la llegada a ese paso se anima con el guion de la lámina.
+export function Lamina({ l, n, paso, animar, foot }) {
+  const ref = useRef(null)
+  useAntesDePintar(() => {
+    if (!animar) return undefined
+    const tl = animarPaso(ref.current, guiones[l.id], paso)
+    return () => detener(tl)
+  }, [l.id, paso, animar])
+  return <PasoCtx.Provider value={paso}>{cuerpo(l, n, foot, ref)}</PasoCtx.Provider>
+}
+
+function cuerpo(l, n, foot, refEl) {
   const met = laminas.find((x) => x.id === 'metodo')
   const int = laminas.find((x) => x.id === 'interesante')
   const jov = grupo('Edad', '18-59')
   const may = grupo('Edad', '≥60')
   const N = 1000
-  const props = { l, n, foot }
+  const props = { l, n, foot, refEl }
 
   switch (l.id) {
     case 'porque':
       return (
-        <Plate {...props} dek={l.pregunta} legend={
+        <Plate {...props} dek={l.pregunta} dekK={2} legend={
           <>
             Mil afiliados escalados desde las tasas de entrenamiento: {Math.round(datos.prevalencia * N)} con ACV. El contorno encierra a los{' '}
             {Math.round(regla.citados * N)} que cita la regla «edad ≥ 60 o hipertensión» (supuesto, no una EPS real).
@@ -104,7 +129,7 @@ export function Lamina({ l, n, foot }) {
       )
     case 'datos':
       return (
-        <Plate {...props} dek={l.apoyo} legend={
+        <Plate {...props} dek={l.apoyo} dekK={2} legend={
           <>
             <strong>a,</strong> Pacientes con ACV: {datos.casos} de {miles(datos.filas)} (Kaggle, uso educativo). <strong>b,</strong> Tasa por edad en el entrenamiento ({miles(datos.n_train)} pacientes,{' '}
             {datos.casos_train} casos). La prueba ({datos.casos_test} casos) sigue sellada.
@@ -121,12 +146,12 @@ export function Lamina({ l, n, foot }) {
             intervinieron en esa elección.
           </>
         }>
-          <Metodo pasos={met.pasos} />
+          <Metodo etapas={met.etapas} />
         </Plate>
       )
     case 'interesante':
       return (
-        <Plate {...props} dek={l.cierre} legend={
+        <Plate {...props} dek={l.cierre} dekK={4} legend={
           <>
             Casos extra frente a la regla (mismas citas) en 20 evaluaciones de ~40 casos. Barra: ±1 desviación estándar; rojo: el elegido. Las barras se solapan: gana la más
             simple (Tabla S1).
@@ -137,7 +162,7 @@ export function Lamina({ l, n, foot }) {
       )
     case 'modelo':
       return (
-        <Plate {...props} dek={`${l.apoyo} ${l.alterno}`} legend={
+        <Plate {...props} dek={`${l.apoyo} ${l.alterno}`} dekK={2} legend={
           <>
             Fuera de fold ({miles(datos.n_train)} pacientes, {datos.casos_train} casos); cada punto de la curva es un umbral. Ampliación: con las mismas citas que la regla, el recall sube de{' '}
             {pct(regla.recall)} a {pct(recallAl(regla.citados))}.
@@ -148,7 +173,7 @@ export function Lamina({ l, n, foot }) {
       )
     case 'prueba':
       return (
-        <Plate {...props} dek={l.apoyo} legend={
+        <Plate {...props} dek={l.apoyo} dekK={1} legend={
           <>
             <strong>a,</strong> Prueba abierta una vez: punto observado; barra, IC 95 % <em>bootstrap</em>. <strong>b,</strong> Recall fuera de fold por edad ({jov.casos_cv} y {may.casos_cv} casos; falta 1 caso de menores de 18).
             La edad pesa el {pct(pesoEdad, 0)} del modelo.
@@ -162,14 +187,14 @@ export function Lamina({ l, n, foot }) {
         <Plate {...props}>
           <div className="concl">
             <ol>
-              {l.puntos.map((p) => (
-                <li key={p.t}>
+              {l.puntos.map((p, i) => (
+                <B as="li" k={i} key={p.t}>
                   <b>{p.t}</b>
                   <span>{p.d}</span>
-                </li>
+                </B>
               ))}
             </ol>
-            <table className="tabla">
+            <B as="table" k={0} className="tabla">
               <caption>
                 <b>Tabla 1 |</b> Puntos de operación fuera de fold; se entregan con la lista de pacientes ordenada por riesgo. Cada punto de recall cuesta más citas al subir.
               </caption>
@@ -203,7 +228,7 @@ export function Lamina({ l, n, foot }) {
                   <td>-</td>
                 </tr>
               </tbody>
-            </table>
+            </B>
           </div>
         </Plate>
       )
@@ -211,4 +236,3 @@ export function Lamina({ l, n, foot }) {
       return null
   }
 }
-

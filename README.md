@@ -8,29 +8,35 @@ Sustentación del proyecto final de **ST1613 Aprendizaje de Máquina Aplicado** 
 
 ## Cómo se usa
 
-Siete láminas más un material suplementario con las preguntas probables. Se navega con el teclado o con un control remoto:
+Siete láminas más un material suplementario con las preguntas probables. Cada lámina se arma paso a paso con el control remoto: un clic, una afirmación (23 pasos en total). En la lámina del método, un paquete recorre los seis pasos y la ruta se enciende detrás de él; la validación anidada rota fold por fold hasta la evaluación 20. Los cuadros junto al contador indican cuántos pasos le quedan a la lámina.
 
 | Tecla | Acción |
 |---|---|
-| `→` `←` | avanzar y retroceder |
+| `→` `←` | paso siguiente y anterior (al retroceder, el paso se muestra ya armado) |
 | `S` | material suplementario (preguntas y tabla de modelos); `1` a `9`, `0` y `A` a `E` abren cada pregunta |
-| `N` | guion de la lámina |
+| `N` | guion de la lámina, con lo que agrega el paso actual |
 | `T` / `R` | reloj de 10 minutos / reiniciarlo |
 | `F` | pantalla completa |
 | `?` | ayuda |
 
-Imprimir la página (Ctrl o Cmd + P) genera un PDF de una lámina por página, como respaldo.
+Cada paso tiene su enlace: `#3.2` abre la lámina 3 en su segundo paso. Con `?movimiento=reducido` (o con la preferencia del sistema) no hay desplazamientos: lo nuevo de cada paso aparece con un fundido corto.
+
+Imprimir la página (Ctrl o Cmd + P) genera un PDF de una lámina por página, cada una completa, como respaldo.
 
 ## Desarrollo
 
 ```
 npm install
 npm run dev       # servidor local
-npm run build     # un solo dist/index.html con JS, CSS y tipografías dentro
-npm run deploy    # publica dist/ en la rama gh-pages
+npm test          # pasos de cada lámina, tiempo total y frases que la entrega prohíbe
+npm run build     # un solo dist/index.html con JS, CSS y tipografías dentro; luego revisa fugas
+npm run pdf       # imprime ?vista=imprimir con Chrome a public/sustentacion.pdf y exige 8 páginas
+npm run deploy    # prueba, compila, imprime y publica dist/ en la rama gh-pages
 ```
 
 Las cifras salen de `src/data/resultados.json`, que escribe el notebook; ninguna se teclea en las láminas. El build es un archivo único, así que también funciona sin internet y con doble clic.
+
+El movimiento usa GSAP con MotionPathPlugin. React dibuja el estado final de cada paso (`<B k>` en `src/paso.jsx` marca lo que aparece en el paso k) y `guiones` en `src/figs.jsx` anima la llegada: una timeline por paso que se completa y se mata al cambiar. `scripts/check-leaks.mjs` falla si algo publicable trae filas de pacientes, correos o tokens.
 
 ## Datos y alcance
 

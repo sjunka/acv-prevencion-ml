@@ -8,18 +8,25 @@ const PRESUPUESTO = 600 // segundos de exposición
 
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b)
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+const nPasos = (i) => (i >= 1 ? laminas[i - 1].pasos.length : 1)
+const ultimo = (i) => nPasos(i) - 1
 
+// #3 abre la lámina 3 en su primer paso y #3.2 en el segundo; #s4 abre la pregunta 4 y #st la tabla.
 function leerHash() {
   const h = window.location.hash.replace('#', '')
   if (h.startsWith('s')) {
-    if (h[1] === 't') return { sup: true, tab: 'tabla', q: 0, vuelve: 1 }
+    const vuelve = { i: 1, paso: 0 }
+    if (h[1] === 't') return { sup: true, tab: 'tabla', q: 0, vuelve }
     const q = clamp((parseInt(h.slice(1), 10) || 1) - 1, 0, preguntas.length - 1)
-    return { sup: true, tab: 'preguntas', q, vuelve: 1 }
+    return { sup: true, tab: 'preguntas', q, vuelve }
   }
-  const i = parseInt(h, 10)
-  return { sup: false, i: Number.isFinite(i) ? clamp(i, 0, TOTAL) : 0 }
+  const [a, b] = h.split('.')
+  const n = parseInt(a, 10)
+  const i = Number.isFinite(n) ? clamp(n, 0, TOTAL) : 0
+  const k = parseInt(b, 10)
+  return { sup: false, i, paso: Number.isFinite(k) ? clamp(k - 1, 0, ultimo(i)) : 0, animar: false }
 }
-const hashDe = (p) => (p.sup ? (p.tab === 'tabla' ? '#st' : `#s${p.q + 1}`) : `#${p.i}`)
+const hashDe = (p) => (p.sup ? (p.tab === 'tabla' ? '#st' : `#s${p.q + 1}`) : p.paso > 0 ? `#${p.i}.${p.paso + 1}` : `#${p.i}`)
 
 function useMedia(q) {
   const [m, setM] = useState(() => window.matchMedia(q).matches)
@@ -32,6 +39,9 @@ function useMedia(q) {
   return m
 }
 
+// ?vista=imprimir deja todas las láminas en su último paso: de ahí sale el PDF de respaldo.
+const vistaImprimir = new URLSearchParams(window.location.search).get('vista') === 'imprimir'
+
 export default function App() {
   const [pos, setPos] = useState(leerHash)
   const [notas, setNotas] = useState(false)
@@ -40,11 +50,12 @@ export default function App() {
   const [t0, setT0] = useState(null)
   const [, setTic] = useState(0)
   const [imprimiendo, setImprimiendo] = useState(false)
-  const doc = useMedia('(max-width: 900px), (max-aspect-ratio: 1/1)')
+  const angosta = useMedia('(max-width: 900px), (max-aspect-ratio: 1/1)')
+  const doc = angosta && !vistaImprimir // el PDF sale con la composición de lámina aunque la ventana sea angosta
   const posRef = useRef(pos)
   posRef.current = pos
 
-  // el hash refleja la lámina: se puede recargar o compartir un enlace a una pregunta
+  // el hash refleja la lámina y el paso: se puede recargar o compartir un enlace a un paso o a una pregunta
   useEffect(() => {
     if (window.location.hash !== hashDe(pos)) window.history.replaceState(null, '', hashDe(pos))
   }, [pos])
@@ -75,14 +86,24 @@ export default function App() {
     }
   }, [])
 
+  // Avanzar recorre los pasos de la lámina y luego pasa a la siguiente, animando la llegada.
+  // Retroceder no anima: muestra el paso anterior ya armado (al cambiar de lámina, su último paso).
   const ir = useCallback((d) => {
-    setPos((p) => (p.sup ? p : { sup: false, i: clamp(p.i + d, 0, TOTAL) }))
+    setPos((p) => {
+      if (p.sup) return p
+      if (d > 0) {
+        if (p.paso < ultimo(p.i)) return { ...p, paso: p.paso + 1, animar: true }
+        return p.i < TOTAL ? { sup: false, i: p.i + 1, paso: 0, animar: true } : p
+      }
+      if (p.paso > 0) return { ...p, paso: p.paso - 1, animar: false }
+      return p.i > 0 ? { sup: false, i: p.i - 1, paso: ultimo(p.i - 1), animar: false } : p
+    })
   }, [])
   const abrirSup = useCallback(() => {
-    setPos((p) => (p.sup ? p : { sup: true, tab: 'preguntas', q: 0, vuelve: p.i }))
+    setPos((p) => (p.sup ? p : { sup: true, tab: 'preguntas', q: 0, vuelve: { i: p.i, paso: p.paso } }))
   }, [])
   const cerrarSup = useCallback(() => {
-    setPos((p) => (p.sup ? { sup: false, i: p.vuelve } : p))
+    setPos((p) => (p.sup ? { sup: false, i: p.vuelve.i, paso: p.vuelve.paso, animar: false } : p))
   }, [])
 
   useEffect(() => {
@@ -129,16 +150,16 @@ export default function App() {
       } else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) {
         e.preventDefault()
         ir(-1)
-      } else if (k === 'Home') setPos({ sup: false, i: 0 })
-      else if (k === 'End') setPos({ sup: false, i: TOTAL })
+      } else if (k === 'Home') setPos({ sup: false, i: 0, paso: 0, animar: false })
+      else if (k === 'End') setPos({ sup: false, i: TOTAL, paso: ultimo(TOTAL), animar: false })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [ir, abrirSup, cerrarSup])
 
   const tiempo = reloj && t0 !== null ? `${mmss((Date.now() - t0) / 1000)} / ${mmss(PRESUPUESTO)}` : null
-  const footDe = (l, n) => (
-    <Foot fase={l.fase} n={n} total={TOTAL} tiempo={tiempo} onPrev={() => ir(-1)} onNext={() => ir(1)} onSup={abrirSup} />
+  const footDe = (l, n, paso) => (
+    <Foot fase={l.fase} n={n} total={TOTAL} paso={paso} pasos={l.pasos.length} tiempo={tiempo} onPrev={() => ir(-1)} onNext={() => ir(1)} onSup={abrirSup} />
   )
   const footSup = (
     <footer className="foot">
@@ -153,10 +174,13 @@ export default function App() {
     </footer>
   )
 
-  const todas = doc || imprimiendo
+  const todas = doc || imprimiendo || vistaImprimir
   const actual = !pos.sup && pos.i >= 1 ? laminas[pos.i - 1] : null
 
-  const lamina = (i) => <Lamina key={laminas[i].id} l={laminas[i]} n={i + 1} foot={footDe(laminas[i], i + 1)} />
+  // En vista de documento o al imprimir, cada lámina va completa (último paso) y sin animación.
+  const lamina = (i, paso, animar) => (
+    <Lamina key={laminas[i].id} l={laminas[i]} n={i + 1} paso={paso} animar={animar} foot={footDe(laminas[i], i + 1, paso)} />
+  )
   const sup = (
     <Suplemento
       tab={pos.sup ? pos.tab : 'preguntas'}
@@ -171,8 +195,8 @@ export default function App() {
     <main className={`deck${doc ? ' doc' : ''}`}>
       {todas ? (
         <>
-          <Portada onStart={() => setPos({ sup: false, i: 1 })} />
-          {laminas.map((_, i) => lamina(i))}
+          <Portada animar={false} onStart={() => setPos({ sup: false, i: 1, paso: 0, animar: true })} />
+          {laminas.map((l, i) => lamina(i, l.pasos.length - 1, false))}
           {doc && sup}
         </>
       ) : pos.sup ? (
@@ -180,14 +204,22 @@ export default function App() {
       ) : pos.i === 0 ? (
         <Portada onStart={() => ir(1)} />
       ) : (
-        lamina(pos.i - 1)
+        lamina(pos.i - 1, pos.paso, pos.animar)
+      )}
+
+      {/* Para lectores de pantalla: qué agrega cada paso (la lámina no lleva más texto) */}
+      {!todas && (
+        <p className="sr-only" aria-live="polite">
+          {actual ? `Paso ${pos.paso + 1} de ${actual.pasos.length}: ${actual.pasos[pos.paso]}` : ''}
+        </p>
       )}
 
       {!todas && notas && actual && (
         <aside className="hud notas" aria-label="Guion de la lámina">
           <h4>
-            Guion · unos {actual.seg} s
+            Guion · unos {actual.seg} s · paso {pos.paso + 1} de {actual.pasos.length}
           </h4>
+          <p className="ahora">{actual.pasos[pos.paso]}</p>
           <ul>
             {actual.notas.map((n) => (
               <li key={n}>{n}</li>
@@ -197,7 +229,7 @@ export default function App() {
       )}
       {!todas && ayuda && (
         <aside className="hud ayuda" aria-label="Atajos de teclado">
-          <div><kbd>→</kbd> <kbd>←</kbd> avanzar y retroceder (también clicker)</div>
+          <div><kbd>→</kbd> <kbd>←</kbd> paso siguiente y anterior (también clicker)</div>
           <div><kbd>S</kbd> material suplementario · <kbd>1</kbd>-<kbd>0</kbd> <kbd>A</kbd>-<kbd>E</kbd> abren cada pregunta</div>
           <div><kbd>N</kbd> guion de la lámina</div>
           <div><kbd>T</kbd> reloj de 10 minutos · <kbd>R</kbd> reiniciar</div>

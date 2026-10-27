@@ -1,7 +1,9 @@
 #!/bin/sh
-# Publica dist/ en la rama gh-pages (GitHub Pages sirve esa rama). Uso: npm run deploy
+# Publica dist/ (sitio y PDF) en la rama gh-pages (GitHub Pages sirve esa rama). Uso: npm run deploy
 set -e
+npm test
 npm run build
+npm run pdf
 cd dist
 rm -rf .git
 git init -q

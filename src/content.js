@@ -1,7 +1,7 @@
 // Texto de la sustentación (10 min + 3 de preguntas). Las cifras vienen de datos.js, no se teclean aquí.
 import {
   curvas, datos, dec, eda, fam, gana, grupo, mas, mejorNegocio, mejorPrAuc, miles, operacion, pct, pesoEdad, prueba,
-  regla, umbral,
+  recallAl, regla, umbral,
 } from './datos'
 
 const lr = fam('Regresión logística')
@@ -13,6 +13,10 @@ const ic = prueba.ic
 const mayores = grupo('Edad', '≥60')
 const jovenes = grupo('Edad', '18-59')
 const dosDeTres = 1 - jovenes.recall_cv // casos de 18 a 59 años que el modelo no capta
+const mil = (x) => Math.round(x * 1000) // escala de la Fig. 1: 1 000 afiliados
+const casos1000 = mil(datos.prevalencia)
+const captados1000 = Math.round(casos1000 * regla.recall)
+const brecha = (recallAl(regla.citados) - regla.recall) * 100 // puntos de recall con las mismas citas que la regla
 
 export const fases = [
   { id: 'porque', nombre: 'Por qué' },
@@ -30,7 +34,8 @@ export const portada = {
   fecha: 'Universidad EAFIT · Octubre de 2026',
 }
 
-// seg = segundos sugeridos; suman 560 de los 600 (queda holgura para preguntas del público)
+// seg = segundos sugeridos; suman 560 de los 600 (queda holgura para preguntas del público).
+// pasos = lo que agrega cada clic del control remoto; su número es el de pasos del guion animado (figs.jsx).
 export const laminas = [
   {
     id: 'porque',
@@ -39,6 +44,11 @@ export const laminas = [
     titulo: 'Una EPS no puede citar a todos sus afiliados.',
     apoyo: 'Hoy escoge con la regla «edad ≥ 60 o hipertensión» (supuesto de este escenario).',
     pregunta: '¿Un modelo capta al menos el 80 % de los casos de ACV citando a menos gente?',
+    pasos: [
+      `De cada 1 000 afiliados, ${casos1000} tuvieron un ACV.`,
+      `La regla «edad ≥ 60 o hipertensión» cita a ${mil(regla.citados)} de cada 1 000 (${pct(regla.citados)}).`,
+      `Capta ${captados1000} de ${casos1000} casos y deja ${casos1000 - captados1000} fuera. La pregunta: ¿un modelo lo hace mejor?`,
+    ],
     notas: [
       'Escenario supuesto: un programa de prevención con cupos limitados de citas. No es una EPS real.',
       `La regla actual cita al ${pct(regla.citados)} de los pacientes y capta el ${pct(regla.recall)} de los casos de ACV.`,
@@ -51,6 +61,11 @@ export const laminas = [
     seg: 70,
     titulo: `${miles(datos.filas)} pacientes y solo 1 de cada 20 tuvo un ACV.`,
     apoyo: `La edad separa más que cualquier otra variable: de ${pct(eda.tasa_edad['<40'] / 100)} bajo 40 años a ${pct(eda.tasa_edad['70+'] / 100)} sobre 70.`,
+    pasos: [
+      `Solo 1 de cada 20 pacientes tuvo un ACV: ${datos.casos} de ${miles(datos.filas)}.`,
+      `Decir siempre «no ACV» acierta el ${pct(1 - datos.prevalencia, 0)} y no detecta a nadie: no se usa accuracy.`,
+      `La tasa de ACV sube con la edad: de ${pct(eda.tasa_edad['<40'] / 100)} bajo 40 años a ${pct(eda.tasa_edad['70+'] / 100)} sobre 70.`,
+    ],
     claves: [
       `No usamos accuracy: un modelo que siempre dice «no ACV» acierta el ${pct(1 - datos.prevalencia, 0)} y no detecta a nadie.`,
       `Prueba sellada: ${miles(datos.n_test)} pacientes y ${datos.casos_test} casos, abierta una sola vez al final.`,
@@ -67,6 +82,12 @@ export const laminas = [
     seg: 80,
     titulo: 'Seis pasos, en este orden, para no engañarnos.',
     pasos: [
+      'Pasos 1 y 2: partir 80/20, sellar la prueba y preprocesar dentro del pipeline.',
+      'Pasos 3 y 4: cinco variantes en validación cruzada anidada; el ciclo interno elige y el externo evalúa, 20 veces.',
+      'Pasos 5 y 6: gana el que capta más casos con las mismas citas; umbral con recall de al menos 0.80.',
+    ],
+    // los seis pasos del método (Fig. 3); se encienden de dos en dos, uno por cada paso de la lámina
+    etapas: [
       { n: 1, t: 'Partir 80/20 y sellar la prueba' },
       { n: 2, t: 'Pipeline sin fuga de datos' },
       { n: 3, t: 'Cinco variantes, 57 configuraciones' },
@@ -85,6 +106,13 @@ export const laminas = [
     fase: 'interesante',
     seg: 100,
     titulo: 'Tres criterios eligen tres modelos distintos.',
+    pasos: [
+      'Eje: casos extra frente a la regla, citando al mismo número de pacientes.',
+      'Las 20 evaluaciones de cada modelo, con su promedio y una desviación estándar.',
+      `PR-AUC elige ${mejorPrAuc.toLowerCase()}, el modelo que más cita.`,
+      `La métrica de negocio elige ${mejorNegocio.toLowerCase()}.`,
+      `La regla fijada antes elige la ${gana.toLowerCase()}: las diferencias caben en el ruido y gana la más simple.`,
+    ],
     criterios: [
       {
         criterio: 'PR-AUC',
@@ -115,6 +143,11 @@ export const laminas = [
     fase: 'resolvimos',
     seg: 100,
     titulo: 'Con las mismas citas, 2 casos más de cada 40.',
+    pasos: [
+      'La curva: casos captados según el porcentaje de pacientes citados; cada punto es un umbral.',
+      `Con recall ${dec(op(0.8).recall)} el modelo cita al ${pct(op(0.8).citados)}; la regla, al ${pct(regla.citados)}.`,
+      `Con las mismas citas que la regla, el recall sube ${dec(brecha, 1)} puntos: unos 2 casos de cada 40.`,
+    ],
     apoyo: `${mas(lr.extra)} ± ${dec(lr.extra_sd)} casos, y supera a la regla en ${Math.round(lr.supera * 20)} de 20 evaluaciones.`,
     alterno: `O un recall igual o mayor con ${dec((regla.citados - lr.citados) * 100, 0)} puntos menos de citas: ${pct(lr.citados, 0)} en lugar de ${pct(regla.citados, 0)}.`,
     notas: [
@@ -128,6 +161,11 @@ export const laminas = [
     fase: 'resolvimos',
     seg: 90,
     titulo: 'La prueba confirma el rumbo, pero no lo demuestra.',
+    pasos: [
+      `Prueba abierta una vez: recall ${dec(p.recall)} del modelo y ${dec(p.recall_regla)} de la regla, con sus intervalos.`,
+      `Casos extra con las mismas citas: ${mas(p.casos_extra, 0)}, con intervalo de ${ic.casos_extra[0]} a ${ic.casos_extra[1]}; incluye el cero.`,
+      `Por edad: bajo 60 años el modelo capta ${dec(jovenes.recall_cv)} de los casos; la regla, ${dec(jovenes.recall_regla_cv)}.`,
+    ],
     apoyo: `Con ${datos.casos_test} casos, un caso mueve el recall 2 puntos.`,
     notas: [
       `Abierta una sola vez: recall ${dec(p.recall)} (IC 95 % ${dec(ic.recall[0])} a ${dec(ic.recall[1])}), precisión ${dec(p.precision, 3)} y cita al ${pct(p.citados)}.`,
@@ -141,6 +179,7 @@ export const laminas = [
     fase: 'conclusion',
     seg: 60,
     titulo: 'Una mejora real, moderada y bien medida.',
+    pasos: ['Resultado, con la tabla de puntos de operación.', 'Lo interesante.', 'Límites y siguiente paso.'],
     puntos: [
       {
         t: 'Resultado',
