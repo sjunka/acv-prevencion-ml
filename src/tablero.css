@@ -1,0 +1,193 @@
+/* Tablero: sala de control clínica. Gris claro tipo RAL 7035, vías negras, ruta del paso en ámbar con borde oscuro,
+   placas grabadas, lámparas y medidores de siete segmentos. Letra grande: se proyecta con la luz encendida. */
+.tabl {
+  --tb-bg: #dcdfe1;
+  --tb-carril: #ced2d5;
+  --tb-linea: #7d858b;
+  --tb-tinta: #14181c;
+  --tb-tinta-2: #3b434a;
+  --tb-apagado: #6f777d;
+  --tb-via: #1d2024;
+  --tb-ambar: #ffb000;
+  --tb-ambar-borde: #3b2a00;
+  --tb-rojo: #d81e2e;
+  --tb-verde: #1f9d3a;
+  --tb-fd: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --tb-ft: 'Barlow Semi Condensed', 'Arial Narrow', sans-serif;
+  position: absolute;
+  inset: 0;
+  background: var(--tb-bg);
+  color: var(--tb-tinta);
+  overflow: hidden;
+}
+.tabl .stage {
+  padding: calc(var(--u) * 2.2) calc(var(--u) * 4) 0;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  row-gap: calc(var(--u) * 1.2);
+}
+.tabl .foot {
+  --ink: var(--tb-tinta);
+  --ink-2: var(--tb-tinta-2);
+  --ink-3: var(--tb-apagado);
+  --grid: #b6bcc0;
+  --paper: var(--tb-bg);
+}
+.tb-head {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--u) * 2.4);
+}
+.tb-n {
+  font: 700 calc(var(--u) * 2.6) / 1 var(--tb-fd);
+  letter-spacing: 0.08em;
+  background: var(--tb-tinta);
+  color: #fff;
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 1.4);
+  border-radius: calc(var(--u) * 0.5);
+}
+.tb-head h2 {
+  margin: 0;
+  font: 700 calc(var(--u) * 4.4) / 1 var(--tb-fd);
+}
+.tb-main {
+  display: flex;
+  gap: calc(var(--u) * 3);
+  min-height: 0;
+}
+.svg {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1000 / 640;
+  max-width: 62%;
+  flex: none;
+  overflow: visible;
+}
+.tb-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: calc(var(--u) * 2);
+}
+.tb-paso {
+  margin: 0;
+  font: 600 calc(var(--u) * 4) / 1.2 var(--tb-ft);
+  text-wrap: pretty;
+}
+.anun {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: calc(var(--u) * 0.7);
+}
+.anun li {
+  padding: calc(var(--u) * 0.7) calc(var(--u) * 1.4);
+  border-radius: calc(var(--u) * 0.5);
+  background: #b9bec2;
+  color: #5a6268;
+  font: 700 calc(var(--u) * 2.7) / 1.1 var(--tb-fd);
+  letter-spacing: 0.06em;
+  transition: background 0.3s, color 0.3s;
+}
+.anun li.on.ambar { background: var(--tb-ambar); color: #1b1300; }
+.anun li.on.rojo { background: var(--tb-rojo); color: #fff; }
+.anun li.on.verde { background: var(--tb-verde); color: #fff; }
+
+/* medidores de siete segmentos */
+.medidores {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: calc(var(--u) * 1.4);
+}
+.med {
+  position: relative;
+  display: grid;
+  gap: calc(var(--u) * 0.3);
+}
+.med .rot {
+  font: 700 calc(var(--u) * 2.5) / 1 var(--tb-fd);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tb-tinta-2);
+}
+.lcd {
+  position: relative;
+  display: block;
+  height: calc(var(--u) * 8);
+  background: #14171a;
+  border-radius: calc(var(--u) * 0.7);
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.3) #2c3238;
+  font: 400 calc(var(--u) * 5.2) / calc(var(--u) * 8) 'DSEG7 Classic', monospace;
+  text-align: right;
+  padding-right: calc(var(--u) * 1.4);
+  overflow: hidden;
+}
+.lcd .gh, .lcd .dg { position: absolute; right: calc(var(--u) * 1.4); top: 0; }
+.lcd .gh { color: #3a2b00; }
+.lcd .dg { color: var(--tb-ambar); }
+.meta {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font: 700 calc(var(--u) * 2.2) / 1 var(--tb-fd);
+  color: #9aa1a6;
+}
+.meta.on { color: var(--tb-rojo); }
+
+/* SVG del tablero */
+.svg text { font-family: var(--tb-ft); }
+.carril { fill: var(--tb-carril); stroke: var(--tb-linea); stroke-width: 2; }
+.cl { font: 700 18px var(--tb-fd); letter-spacing: 0.1em; fill: var(--tb-tinta-2); }
+.svg .via { fill: none; stroke: var(--tb-via); stroke-width: 5; stroke-linejoin: round; }
+.svg .trazo { fill: none; stroke-dasharray: 1 1; stroke-linejoin: round; }
+.svg .borde { stroke: var(--tb-ambar-borde); stroke-width: 11; }
+.svg .ruta { stroke: var(--tb-ambar); stroke-width: 6; }
+.svg .rojo .borde { stroke: #4a0a10; }
+.svg .rojo .ruta { stroke: var(--tb-rojo); }
+.svg .vieja { opacity: 0.45; }
+.svg .pkt { fill: #fff; stroke: var(--tb-tinta); stroke-width: 3; }
+.svg .pkr { fill: var(--tb-rojo); stroke: #4a0a10; }
+.cara { fill: #e6e9eb; stroke: var(--tb-linea); stroke-width: 2; }
+.mod.vivo .cara { fill: #f4f5f6; stroke: var(--tb-tinta); stroke-width: 3; }
+.luz { fill: none; stroke: var(--tb-ambar); stroke-width: 5; }
+.mt { font: 700 23px var(--tb-fd); fill: var(--tb-apagado); }
+.mod.vivo .mt { fill: var(--tb-tinta); }
+.ml { font: 600 21px var(--tb-ft); fill: var(--tb-tinta); }
+.ms { font: 500 18px var(--tb-ft); fill: var(--tb-tinta-2); }
+.mod:not(.vivo) .ms { fill: var(--tb-apagado); }
+.tb-gr { fill: #0c6b24; font-weight: 700; }
+.rj { fill: var(--tb-rojo); }
+.tach { text-decoration: line-through; fill: var(--tb-apagado); }
+.lp { fill: #8d9399; stroke: var(--tb-tinta); stroke-width: 2; }
+.lp.verde { fill: var(--tb-verde); }
+.lp.ambar { fill: var(--tb-ambar); }
+.lp.blanca { fill: #fff; }
+.lp.roja { fill: var(--tb-rojo); }
+.lamp-t { stroke: var(--tb-tinta); stroke-width: 1.2; }
+.lamp-t.v { fill: var(--tb-verde); }
+.lamp-t.g { fill: #aab0b4; }
+.lamp-t.r { fill: var(--tb-rojo); }
+.marco { fill: none; stroke: var(--tb-tinta-2); stroke-width: 2; stroke-dasharray: 8 6; }
+.dial { fill: #f8f9f9; stroke: var(--tb-tinta); stroke-width: 3; }
+.aguja { stroke: var(--tb-rojo); stroke-width: 5; stroke-linecap: round; }
+.barra { fill: var(--tb-rojo); stroke: #4a0a10; stroke-width: 2; }
+.placa { fill: var(--tb-rojo); stroke: #4a0a10; stroke-width: 2; }
+.tb-pl { font: 700 18px var(--tb-fd); fill: #fff; letter-spacing: 0.03em; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tb-paso { animation: sube 0.5s var(--ease) both; }
+}
+
+/* pantalla angosta: el tablero arriba y la lectura debajo, con desplazamiento */
+@media (max-width: 900px), (max-aspect-ratio: 1/1) {
+  body:has(.tabl) { overflow: auto; }
+  .deck:has(.tabl) { height: auto; min-height: 100dvh; }
+  .tabl { --u: calc(100vw / 64); position: relative; min-height: 100dvh; overflow: visible; }
+  .tabl .stage { position: relative; left: auto; top: auto; translate: none; width: 100%; height: auto; display: flex; flex-direction: column; gap: calc(var(--u) * 1.5); padding-bottom: calc(var(--u) * 2); }
+  .tb-main { flex-direction: column; }
+  .svg { width: 100%; height: auto; max-width: none; }
+  .tabl .foot { height: auto; grid-template-columns: 1fr; }
+  .medidores { grid-template-columns: repeat(3, 1fr); }
+}
