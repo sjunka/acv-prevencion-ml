@@ -385,6 +385,8 @@ button {
   position: absolute;
   right: calc(var(--u) * 9);
   top: calc(var(--u) * 5.6);
+  display: flex;
+  gap: calc(var(--u) * 1.6);
 }
 .cover .btn {
   border-color: var(--on-cover);
@@ -948,3 +950,29 @@ body:has(.deck.doc) {
     animation: none !important;
   }
 }
+
+/* Botón flotante (solo icono) para alternar láminas / tablero; tecla L alterna */
+.fab-vista {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: #fff;
+  background: var(--ink);
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.7;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.fab-vista:hover { opacity: 1; transform: scale(1.06); }
+.fab-vista:focus-visible { opacity: 1; outline: 2px solid var(--ink); outline-offset: 3px; }
+.fab-vista svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+@media (prefers-reduced-motion: reduce) { .fab-vista { transition: none; } }
+@media print { .fab-vista { display: none; } }

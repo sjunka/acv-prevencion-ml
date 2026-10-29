@@ -10,11 +10,11 @@ const PRESUPUESTO = 600 // segundos de exposición
 
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b)
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
-// Dos vistas con la misma estructura: el tablero (por defecto) y las láminas de artículo (plan B: ?vista=laminas o tecla L).
+// Dos vistas con la misma estructura: las láminas de artículo (por defecto) y el tablero (?vista=tablero, tecla L o botón).
 const listaDe = (m) => (m === 'tablero' ? ESCENAS : laminas)
 const nPasos = (m, i) => (i >= 1 ? listaDe(m)[i - 1].pasos.length : 1)
 const ultimo = (m, i) => nPasos(m, i) - 1
-const MODO0 = new URLSearchParams(window.location.search).get('vista') === 'laminas' ? 'laminas' : 'tablero'
+const MODO0 = new URLSearchParams(window.location.search).get('vista') === 'tablero' ? 'tablero' : 'laminas'
 // #3 abre la lámina 3 en su primer paso y #3.2 en el segundo; #s4 abre la pregunta 4 y #st la tabla.
 function leerHash(m) {
   const h = window.location.hash.replace('#', '')
@@ -106,6 +106,16 @@ export default function App() {
       return p.i > 0 ? { sup: false, i: p.i - 1, paso: ultimo(modoRef.current, p.i - 1), animar: false } : p
     })
   }, [])
+  // Alterna la vista y deja la URL en ?vista=tablero para poder compartir el enlace.
+  const cambiarModo = useCallback(() => {
+    const m = modoRef.current === 'tablero' ? 'laminas' : 'tablero'
+    setModo(m)
+    setPos((p) => (p.sup ? p : { sup: false, i: p.i, paso: 0, animar: false }))
+    const u = new URL(window.location.href)
+    if (m === 'tablero') u.searchParams.set('vista', 'tablero')
+    else u.searchParams.delete('vista')
+    window.history.replaceState(null, '', u)
+  }, [])
   const abrirSup = useCallback(() => {
     setPos((p) => (p.sup ? p : { sup: true, tab: 'preguntas', q: 0, vuelve: { i: p.i, paso: p.paso } }))
   }, [])
@@ -127,12 +137,7 @@ export default function App() {
         if (p.sup) cerrarSup()
         return
       }
-      if (k === 'l') {
-        const m = modoRef.current === 'tablero' ? 'laminas' : 'tablero'
-        setModo(m)
-        setPos(p.sup ? p : { sup: false, i: p.i, paso: 0, animar: false })
-        return
-      }
+      if (k === 'l') return cambiarModo()
       if (k === 'f') {
         if (document.fullscreenElement) document.exitFullscreen()
         else document.documentElement.requestFullscreen?.()
@@ -168,7 +173,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [ir, abrirSup, cerrarSup])
+  }, [ir, abrirSup, cerrarSup, cambiarModo])
 
   const tiempo = reloj && t0 !== null ? `${mmss((Date.now() - t0) / 1000)} / ${mmss(PRESUPUESTO)}` : null
   const footDe = (l, n, paso) => (
@@ -223,6 +228,15 @@ export default function App() {
         ) : (
           lamina(pos.i - 1, pos.paso, pos.animar)
         )
+      )}
+
+      {/* Botón flotante de solo icono: muestra la vista a la que lleva; la tecla L hace lo mismo */}
+      {!imprimiendo && !vistaImprimir && (
+        <button type="button" className="fab-vista" onClick={cambiarModo} aria-label={modo === 'tablero' ? 'Ver láminas (L)' : 'Ver tablero (L)'} title={modo === 'tablero' ? 'Ver láminas (L)' : 'Ver tablero (L)'}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            {modo === 'tablero' ? <path d="M4 5h16v11H4zM9 20h6M12 16v4" /> : <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />}
+          </svg>
+        </button>
       )}
 
       {/* Para lectores de pantalla: qué agrega cada paso (la lámina no lleva más texto) */}

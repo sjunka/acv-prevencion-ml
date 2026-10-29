@@ -62,9 +62,11 @@ export function Portada({ onStart, animar = true }) {
           </p>
         </div>
         <Campo animar={animar} />
-        <button className="btn go" onClick={onStart}>
-          Comenzar
-        </button>
+        <div className="go">
+          <button type="button" className="btn" onClick={onStart}>
+            Comenzar
+          </button>
+        </div>
       </div>
     </section>
   )
