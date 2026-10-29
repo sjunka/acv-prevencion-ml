@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cómo piensa la máquina</title>
+<meta name="description" content="Tablero interactivo que explica, fase por fase, cómo el modelo decide a quién citar a control y por qué se construyó así.">
+<!-- tipografías: las inyecta src/maquina.jsx (Barlow Condensed, Barlow Semi Condensed, DSEG7) -->
+<style>
+:root {
+  --bg: #dcdfe1;
+  --carril: #ced2d5;
+  --linea: #7d858b;
+  --tinta: #14181c;
+  --tinta-2: #3b434a;
+  --apagado: #6f777d;
+  --via: #1d2024;
+  --ambar: #ffb000;
+  --ambar-borde: #3b2a00;
+  --rojo: #d81e2e;
+  --rojo-borde: #4a0a10;
+  --verde: #1f9d3a;
+  --verde-txt: #0c6b24;
+  --cara: #e6e9eb;
+  --papel: #f4f5f6;
+  --fd: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --ft: 'Barlow Semi Condensed', 'Arial Narrow', sans-serif;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+}
+* { box-sizing: border-box; }
+html { color-scheme: light; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--tinta);
+  font: 500 1rem/1.4 var(--ft);
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--tinta); outline-offset: 3px; }
+
+.page { max-width: 1480px; margin: 0 auto; padding: 20px 24px 28px; display: grid; gap: 18px; }
+.board { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(260px, 1fr); gap: 24px; align-items: stretch; }
+.diagram svg { width: 100%; height: auto; display: block; overflow: visible; }
+.side { display: flex; flex-direction: column; gap: 18px; justify-content: space-between; }
+.intro h1 { margin: 0 0 8px; font: 700 clamp(1.9rem, 3.2vw, 2.9rem)/1.02 var(--fd); }
+.intro p { margin: 0; font: 600 clamp(1rem, 1.5vw, 1.25rem)/1.3 var(--ft); color: var(--tinta-2); max-width: 36ch; text-wrap: pretty; }
+
+/* anunciadores */
+.anun { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.anun button {
+  width: 100%; text-align: left; border: 0; border-radius: 5px; padding: 9px 14px;
+  font: 700 clamp(1.05rem, 1.6vw, 1.45rem)/1.1 var(--fd); letter-spacing: .06em;
+  transition: transform .2s var(--ease), box-shadow .2s;
+}
+.anun .ambar { background: var(--ambar); color: #1b1300; }
+.anun .rojo { background: var(--rojo); color: #fff; }
+.anun .verde { background: var(--verde); color: #fff; }
+.anun .gris { background: #b9bec2; color: #5a6268; }
+.anun button:hover, .anun button:focus-visible { transform: translateX(-6px); box-shadow: 6px 6px 0 var(--tinta); }
+
+/* medidores */
+.meds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+.med { position: relative; display: grid; gap: 4px; border: 0; background: none; padding: 0; text-align: left; }
+.med .rot { font: 700 clamp(.95rem, 1.4vw, 1.25rem)/1 var(--fd); letter-spacing: .05em; text-transform: uppercase; color: var(--tinta-2); }
+.lcd {
+  position: relative; display: block; height: clamp(54px, 6vw, 84px);
+  background: #14171a; border-radius: 7px; box-shadow: inset 0 0 0 3px #2c3238;
+  font: 400 clamp(2rem, 3.6vw, 3.6rem)/clamp(54px, 6vw, 84px) 'DSEG7 Classic', monospace;
+  overflow: hidden; transition: box-shadow .2s;
+}
+.lcd i { position: absolute; right: 14px; top: 0; font-style: normal; }
+.lcd .gh { color: #3a2b00; }
+.lcd .dg { color: var(--ambar); }
+.med:hover .lcd, .med:focus-visible .lcd { box-shadow: inset 0 0 0 3px #2c3238, 0 0 0 3px var(--ambar); }
+.meta { position: absolute; right: 0; top: 0; font: 700 clamp(.8rem, 1.1vw, 1.05rem)/1 var(--fd); color: var(--rojo); }
+
+/* SVG del tablero */
+.svg text { font-family: var(--ft); }
+.carril { fill: var(--carril); stroke: var(--linea); stroke-width: 2; }
+.cl { font: 700 18px var(--fd); letter-spacing: .1em; fill: var(--tinta-2); }
+.via { fill: none; stroke: var(--via); stroke-width: 5; stroke-linejoin: round; }
+.trazo { fill: none; stroke-linejoin: round; }
+.borde { stroke: var(--ambar-borde); stroke-width: 11; }
+.ruta { stroke: var(--ambar); stroke-width: 6; }
+.flujo { stroke: #fff6d6; stroke-width: 2.4; stroke-dasharray: 2 20; stroke-linecap: round; animation: fluir 1.1s linear infinite; }
+.rt.roja .borde { stroke: var(--rojo-borde); }
+.rt.roja .ruta { stroke: var(--rojo); }
+.rt.roja .flujo { stroke: #ffd5d9; }
+.rt.lazo .borde { stroke-width: 6; stroke: var(--tinta-2); }
+.rt.lazo .ruta { stroke-width: 2.5; stroke: var(--tinta-2); stroke-dasharray: 8 6; }
+.rt.lazo .flujo { display: none; }
+@keyframes fluir { to { stroke-dashoffset: -22; } }
+.pk { fill: #fff; stroke: var(--tinta); stroke-width: 3; }
+.pkr { fill: var(--rojo); stroke: var(--rojo-borde); stroke-width: 3; }
+
+.mod { cursor: pointer; transition: opacity .25s; }
+.cara { fill: var(--cara); stroke: var(--tinta); stroke-width: 2.5; transition: fill .2s; }
+.mod .luz { fill: none; stroke: var(--ambar); stroke-width: 5; opacity: 0; transition: opacity .2s; }
+.mod:hover .luz, .mod:focus-visible .luz, .mod.sel .luz { opacity: 1; }
+.mod:hover .cara, .mod:focus-visible .cara { fill: #fff; }
+.mod:focus-visible { outline: none; }
+.mt { font: 700 23px var(--fd); fill: var(--tinta); pointer-events: none; }
+.ml { font: 600 21px var(--ft); fill: var(--tinta); pointer-events: none; }
+.ms { font: 500 18px var(--ft); fill: var(--tinta-2); pointer-events: none; }
+.gr { fill: var(--verde-txt); font-weight: 700; }
+.rj { fill: var(--rojo); }
+.tach { text-decoration: line-through; fill: var(--apagado); }
+.lp { stroke: var(--tinta); stroke-width: 2; animation: pita 2.4s ease-in-out infinite; }
+.lp.verde { fill: var(--verde); }
+.lp.ambar { fill: var(--ambar); animation-duration: 1.4s; }
+@keyframes pita { 50% { opacity: .35; } }
+.lt { stroke: var(--tinta); stroke-width: 1.2; }
+.lt.v { fill: var(--verde); }
+.lt.g { fill: #aab0b4; }
+.lt.r { fill: var(--rojo); }
+.marco { fill: none; stroke: var(--tinta-2); stroke-width: 2; stroke-dasharray: 8 6; pointer-events: none; }
+.dial { fill: #f8f9f9; stroke: var(--tinta); stroke-width: 3; }
+.aguja { stroke: var(--rojo); stroke-width: 5; stroke-linecap: round; }
+.perilla { animation: oscila 5s ease-in-out infinite; transform-origin: 0 0; }
+@keyframes oscila { 0%, 100% { transform: rotate(2deg); } 50% { transform: rotate(-9deg); } }
+.barra { fill: var(--rojo); stroke: var(--rojo-borde); stroke-width: 2; }
+.placa { fill: var(--rojo); stroke: var(--rojo-borde); stroke-width: 2; }
+.pl { font: 700 18px var(--fd); fill: #fff; letter-spacing: .03em; pointer-events: none; }
+.dim { opacity: .3; }
+.rt { transition: opacity .25s; }
+
+/* vista previa al pasar el cursor */
+#tip {
+  position: fixed; z-index: 20; max-width: 290px; pointer-events: none;
+  background: var(--tinta); color: #fff; border-radius: 8px; padding: 12px 14px;
+  box-shadow: 6px 6px 0 rgba(20, 24, 28, .25);
+  opacity: 0; transform: translateY(6px) scale(.97); transition: opacity .18s, transform .18s var(--ease);
+}
+#tip.on { opacity: 1; transform: none; }
+#tip small { display: block; font: 700 .85rem/1 var(--fd); letter-spacing: .12em; color: var(--ambar); text-transform: uppercase; margin-bottom: 5px; }
+#tip b { display: block; font: 700 1.3rem/1.1 var(--fd); margin-bottom: 5px; }
+#tip span { display: block; font: 500 .95rem/1.3 var(--ft); color: #d6dadd; }
+#tip em { display: block; margin-top: 8px; font: 600 .85rem/1 var(--fd); letter-spacing: .08em; color: var(--ambar); font-style: normal; text-transform: uppercase; }
+
+/* lightbox */
+dialog#lb {
+  width: min(940px, 94vw); max-height: 92vh; padding: 0; border: 3px solid var(--tinta); border-radius: 10px;
+  background: var(--papel); color: var(--tinta); box-shadow: 10px 10px 0 rgba(20, 24, 28, .35); overflow: auto;
+}
+dialog#lb::backdrop { background: rgba(20, 24, 28, .55); backdrop-filter: blur(3px); }
+dialog#lb[open] { animation: abre .32s var(--ease); }
+dialog#lb[open]::backdrop { animation: velo .32s; }
+@keyframes abre { from { opacity: 0; transform: translateY(16px) scale(.97); } }
+@keyframes velo { from { opacity: 0; } }
+.lb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: var(--tinta); color: #fff; }
+.lb-top .k { font: 700 1rem/1 var(--fd); letter-spacing: .14em; text-transform: uppercase; color: var(--ambar); }
+.lb-top .n { font: 600 .95rem/1 var(--fd); letter-spacing: .1em; color: #aab0b4; margin-left: auto; }
+.x { border: 0; background: #fff; color: var(--tinta); width: 34px; height: 34px; border-radius: 50%; font: 700 1.2rem/1 var(--ft); display: grid; place-items: center; }
+.x:hover { background: var(--ambar); }
+.lb-body { padding: 20px 24px 8px; }
+.lb-body h2 { margin: 0 0 14px; font: 700 clamp(1.7rem, 3.4vw, 2.5rem)/1.05 var(--fd); text-wrap: balance; }
+.car { border: 2px solid var(--tinta); border-radius: 8px; background: #fff; overflow: hidden; }
+.car-vis { background: #eef0f1; border-bottom: 2px solid var(--tinta); padding: 10px; min-height: 190px; display: grid; place-items: center; }
+.car-vis svg { width: 100%; max-width: 560px; height: auto; display: block; }
+.car-txt { padding: 14px 18px 8px; min-height: 108px; }
+.car-txt h3 { margin: 0 0 4px; font: 700 1.5rem/1.1 var(--fd); }
+.car-txt p { margin: 0; font: 500 1.08rem/1.4 var(--ft); color: var(--tinta-2); text-wrap: pretty; }
+.car-txt p b { color: var(--tinta); }
+.car-nav { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 12px; }
+.arrow { border: 2px solid var(--tinta); background: var(--cara); border-radius: 6px; width: 40px; height: 34px; font: 700 1.1rem/1 var(--ft); }
+.arrow:hover:not(:disabled) { background: var(--ambar); }
+.arrow:disabled { opacity: .3; cursor: default; }
+.pts { display: flex; gap: 8px; }
+.pts button { width: 12px; height: 12px; border-radius: 50%; padding: 0; border: 2px solid var(--tinta); background: transparent; }
+.pts button[aria-current="true"] { background: var(--tinta); }
+.lb-info { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-top: 16px; }
+.card { border: 2px solid var(--tinta); border-radius: 8px; padding: 12px 16px; background: #fff; }
+.card h4 { margin: 0 0 6px; font: 700 .95rem/1 var(--fd); letter-spacing: .14em; text-transform: uppercase; color: var(--apagado); }
+.card p { margin: 0 0 6px; font: 500 1rem/1.35 var(--ft); text-wrap: pretty; }
+.card p:last-child { margin-bottom: 0; }
+.card .no { color: var(--rojo); font-weight: 600; }
+.card .si { color: var(--verde-txt); font-weight: 600; }
+.ej { display: grid; align-content: start; gap: 8px; }
+.ej .lcd { height: 64px; line-height: 64px; font-size: 2.6rem; }
+.ej .lcd i { right: 12px; }
+.ej .tag { font: 600 .85rem/1.2 var(--ft); color: var(--apagado); }
+.ej .lab { font: 700 1rem/1.1 var(--fd); letter-spacing: .04em; }
+.lb-foot { display: flex; justify-content: space-between; gap: 10px; padding: 12px 24px 20px; }
+.fase { border: 2px solid var(--tinta); background: var(--cara); border-radius: 6px; padding: 8px 14px; font: 700 1.05rem/1 var(--fd); letter-spacing: .06em; text-transform: uppercase; }
+.fase:hover { background: var(--ambar); }
+.fase:disabled { opacity: .3; cursor: default; }
+
+/* ilustraciones del carrusel */
+.vis text { font-family: var(--ft); fill: var(--tinta); }
+.vis .t1 { font: 700 26px var(--fd); }
+.vis .t2 { font: 600 15px var(--ft); fill: var(--tinta-2); }
+.vis .t3 { font: 700 44px var(--fd); }
+.pop { animation: pop .5s var(--ease) both; animation-delay: var(--d, 0s); transform-box: fill-box; transform-origin: center; }
+@keyframes pop { from { opacity: 0; transform: scale(.4); } }
+.grow { animation: grow .8s var(--ease) both; animation-delay: var(--d, 0s); transform-box: fill-box; transform-origin: left center; }
+@keyframes grow { from { transform: scaleX(0); } }
+.fade { animation: fadein .5s ease both; animation-delay: var(--d, 0s); }
+@keyframes fadein { from { opacity: 0; } }
+.pulso { animation: pita 1.2s ease-in-out infinite; }
+.vis-fade { animation: fadein .35s ease; }
+
+@media (max-width: 900px) {
+  .board { grid-template-columns: 1fr; }
+  .meds { grid-template-columns: repeat(3, 1fr); }
+  .lb-info { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .page { padding: 14px 12px 22px; }
+  .meds { grid-template-columns: repeat(2, 1fr); }
+  .lb-body { padding: 16px 14px 4px; }
+  .lb-foot { padding: 10px 14px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <section class="board">
+    <div class="diagram"><svg id="svg" class="svg" viewBox="0 0 1000 640" role="group" aria-label="Tablero de la máquina: operación del programa arriba, laboratorio abajo"></svg></div>
+    <aside class="side">
+      <div class="intro">
+        <h1>Cómo piensa la máquina</h1>
+        <p>Un programa que decide a quién citar a control antes de que ocurra un ACV. Cada caja es una decisión: ábrela y mira por qué se hizo así.</p>
+      </div>
+      <ul class="anun" id="anun"></ul>
+    </aside>
+  </section>
+  <section class="meds" id="meds" aria-label="Lecturas del proyecto"></section>
+</main>
+
+<div id="tip" role="tooltip"></div>
+
+<dialog id="lb" aria-labelledby="lb-q">
+  <div class="lb-top"><span class="k" id="lb-k"></span><span class="n" id="lb-n"></span><button class="x" id="lb-x" aria-label="Cerrar">✕</button></div>
+  <div class="lb-body">
+    <h2 id="lb-q"></h2>
+    <div class="car">
+      <div class="car-vis" id="lb-vis"></div>
+      <div class="car-txt" id="lb-txt" aria-live="polite"></div>
+      <div class="car-nav">
+        <button class="arrow" id="c-prev" aria-label="Estado anterior">←</button>
+        <div class="pts" id="c-pts"></div>
+        <button class="arrow" id="c-next" aria-label="Estado siguiente">→</button>
+      </div>
+    </div>
+    <div class="lb-info">
+      <div class="card" id="lb-dec"></div>
+      <div class="card ej" id="lb-ej"></div>
+    </div>
+  </div>
+  <div class="lb-foot">
+    <button class="fase" id="f-prev">← Fase anterior</button>
+    <button class="fase" id="f-next">Fase siguiente →</button>
+  </div>
+</dialog>
+
+<script>
+'use strict'
+/* ------------------------------------------------------------------ geometría
+   Mismo plano del tablero del proyecto: viewBox 1000 x 640. Los números son un escenario de ejemplo. */
+const M = {
+  afil: [24, 90, 130, 110, 'Afiliados'],
+  regla: [240, 52, 200, 76, 'Regla actual'],
+  modelo: [240, 152, 200, 76, 'Modelo'],
+  umbral: [490, 152, 130, 76, 'Umbral'],
+  citas: [740, 52, 240, 76, 'Citas'],
+  sin: [740, 152, 240, 76, 'Sin cita'],
+  datos: [24, 314, 140, 76, 'Datos'],
+  part: [24, 412, 140, 60, 'Partición'],
+  boveda: [24, 516, 140, 100, 'Bóveda'],
+  pipe: [230, 318, 200, 110, 'Pipeline'],
+  smote: [230, 452, 200, 56, 'SMOTE'],
+  eval: [230, 580, 200, 48, 'Evaluación'],
+  modelos: [480, 312, 290, 316, ''],
+  sel: [810, 312, 172, 316, 'Selección'],
+}
+// id: [origen, destino, trazo, tipo]  (roja = se detiene en una barra; lazo = ciclo de validación)
+const R = {
+  'af-regla': ['afil', 'regla', 'M154 120 H197 V90 H240'],
+  'af-modelo': ['afil', 'modelo', 'M154 170 H197 V190 H240'],
+  'regla-citas': ['regla', 'citas', 'M440 76 H740'],
+  'regla-fuera': ['regla', 'sin', 'M440 108 H660 V200 H740'],
+  'modelo-umbral': ['modelo', 'umbral', 'M440 190 H490'],
+  'umbral-citas': ['umbral', 'citas', 'M620 172 H710 V116 H740'],
+  'umbral-fuera': ['umbral', 'sin', 'M620 214 H740'],
+  'datos-part': ['datos', 'part', 'M94 390 V412'],
+  'part-boveda': ['part', 'boveda', 'M94 472 V516'],
+  'part-pipe': ['part', 'pipe', 'M164 442 H186 V350 H230'],
+  'pipe-smote': ['pipe', 'smote', 'M330 428 V452'],
+  'pipe-modelos': ['pipe', 'modelos', 'M430 360 H480'],
+  'smote-modelos': ['smote', 'modelos', 'M430 480 H480'],
+  'modelos-eval': ['modelos', 'eval', 'M480 612 H430'],
+  'rl-sel': ['modelos', 'sel', 'M770 368 H810'],
+  'sel-modelo': ['sel', 'modelo', 'M896 312 V246 H340 V228'],
+  'boveda-modelo': ['boveda', 'modelo', 'M24 570 H14 V246 H290 V228'],
+  'smote-eval': ['smote', 'eval', 'M330 508 V522', 'roja'],
+  'boveda-pipe': ['boveda', 'pipe', 'M164 580 H206 V396 H230', 'roja'],
+  'gb-sel': ['modelos', 'sel', 'M770 591 H796', 'roja'],
+  'rf-sel': ['modelos', 'sel', 'M770 537 H796', 'roja'],
+  interno: ['modelos', 'modelos', 'M490 346 H762 V622 H490 Z', 'lazo'],
+  externo: ['eval', 'modelos', 'M430 592 H455 V334 H430', 'lazo'],
+}
+const BARRA = { 'smote-eval': [300, 520, 60, 6], 'boveda-pipe': [213, 382, 6, 28], 'gb-sel': [794, 577, 6, 28], 'rf-sel': [794, 523, 6, 28] }
+const PLACA = {
+  'smote-eval': [240, 530, 180, 44, ['SMOTE no toca', 'la evaluación']],
+  'gb-sel': [816, 566, 160, 38, ['Cita al 35.2 %']],
+  'rf-sel': [816, 500, 160, 54, ['Empate: gana', 'el más simple']],
+}
+// cada placa/barra roja abre la explicación de la fase que la origina
+const PLACA_ID = { 'smote-eval': 'smote', 'boveda-pipe': 'boveda', 'gb-sel': 'sel', 'rf-sel': 'sel' }
+const FILAS = [['Reg. logística', 10, 1.75], ['Logística + SMOTE', 10, 1.55], ['kNN + SMOTE', 10, -1.6], ['Random forest', 15, 2.4], ['Gradient boosting', 12, 1.3]]
+const fy = (i) => 348 + 54 * i
+// casos extra de cada una de las 20 evaluaciones (resultados.json, cv.familias[*].por_fold)
+const POR_FOLD = [
+  [1, 4, 1, 1, 3, 2, 3, 0, 0, 2, 2, -1, 2, 0, 5, 4, 2, 2, 2, 0],
+  [1, -1, 1, 0, 4, 1, 4, -1, 0, 1, 4, -1, 2, 1, 5, 4, 2, 1, 2, 1],
+  [-6, -1, -1, 1, -1, -2, 0, -8, -2, -2, -1, -5, 0, -3, 3, -1, 3, -1, -4, -1],
+  [3, 5, 4, 2, 5, 2, 1, -2, 2, 3, 1, 1, 3, 1, 4, 3, 2, 1, 4, 3],
+  [-1, 4, 3, 2, 5, -2, 2, -2, -2, 6, 0, -3, 3, 0, -1, 0, 2, 3, 4, 3],
+]
+const lampara = (i) => POR_FOLD[i].map((v) => (v > 0 ? 'v' : v < 0 ? 'r' : 'g'))
+
+/* ------------------------------------------------------------------ ilustraciones del carrusel (viewBox 360 x 150) */
+/* Encoge cualquier texto del SVG que no quepa en su ancho disponible (data-w o ancho de su caja). */
+function ajustar(raiz) {
+  raiz.querySelectorAll('text[data-w]').forEach((t) => {
+    let fs = parseFloat(getComputedStyle(t).fontSize)
+    t.style.fontSize = ''
+    fs = parseFloat(getComputedStyle(t).fontSize)
+    while (t.getComputedTextLength() > +t.dataset.w && fs > 9) { fs -= 0.5; t.style.fontSize = fs + 'px' }
+  })
+}
+const V = {
+  dots({ n = 20, cols = 10, hot = [], syn = [], grey = [], note }) {
+    const rows = Math.ceil(n / cols)
+    const c = Math.min(300 / cols, 96 / rows)
+    const x0 = (360 - c * cols) / 2 + c / 2
+    const y0 = (note ? 16 : 28) + c / 2
+    let s = ''
+    for (let i = 0; i < n; i++) {
+      const cls = hot.includes(i) ? '#d81e2e' : syn.includes(i) ? '#ffb000' : grey.includes(i) ? '#aab0b4' : '#fff'
+      const dash = syn.includes(i) ? ' stroke-dasharray="3 2"' : ''
+      s += `<circle class="pop" style="--d:${(i * 0.025).toFixed(2)}s" cx="${x0 + (i % cols) * c}" cy="${y0 + Math.floor(i / cols) * c}" r="${c * 0.36}" fill="${cls}" stroke="#14181c" stroke-width="2"${dash}/>`
+    }
+    if (note) s += `<text class="t2" data-w="344" x="180" y="142" text-anchor="middle">${note}</text>`
+    return s
+  },
+  bars({ rows, max = 1 }) {
+    const n = rows.length, gap = n > 3 ? 8 : 14, h = Math.min(26, (136 - (n - 1) * gap) / n), y0 = (150 - (n * h + (n - 1) * gap)) / 2
+    return rows.map(([lab, v, col, txt], i) => {
+      const y = y0 + i * (h + gap)
+      return `<text class="t2" data-w="116" x="8" y="${y + h / 2 + 5}">${lab}</text>
+        <rect x="128" y="${y}" width="190" height="${h}" rx="4" fill="#dcdfe1" stroke="#14181c" stroke-width="2"/>
+        <rect class="grow" style="--d:${i * 0.12}s" x="128" y="${y}" width="${Math.max(3, 190 * Math.min(1, Math.abs(v) / max))}" height="${h}" rx="4" fill="${col}" stroke="#14181c" stroke-width="2"/>
+        <text class="t2" data-w="34" x="324" y="${y + h / 2 + 5}" font-weight="700">${txt ?? ''}</text>`
+    }).join('')
+  },
+  chain({ items, hot = -1, sub = [] }) {
+    const n = items.length, w = (340 - (n - 1) * 22) / n
+    return items.map((t, i) => {
+      const x = 10 + i * (w + 22)
+      const on = i === hot
+      return `<g class="pop" style="--d:${i * 0.15}s">
+        <rect x="${x}" y="40" width="${w}" height="56" rx="6" fill="${on ? '#ffb000' : '#fff'}" stroke="#14181c" stroke-width="2.5"/>
+        <text class="t1" data-w="${w - 10}" x="${x + w / 2}" y="74" text-anchor="middle" style="font-size:${n > 3 ? 19 : 23}px">${t}</text>
+        ${sub[i] ? `<text class="t2" data-w="${w + 18}" x="${x + w / 2}" y="118" text-anchor="middle">${sub[i]}</text>` : ''}
+      </g>${i < n - 1 ? `<path d="M${x + w + 3} 68 h16 m-6 -6 l6 6 l-6 6" fill="none" stroke="#14181c" stroke-width="2.5"/>` : ''}`
+    }).join('')
+  },
+  split({ parts, note }) {
+    let x = 10
+    const out = parts.map(([lab, f, col], i) => {
+      const w = 340 * f
+      const s = `<rect class="grow" style="--d:${i * 0.2}s" x="${x}" y="46" width="${w}" height="44" fill="${col}" stroke="#14181c" stroke-width="2.5"/>
+        <text class="t1" data-w="${w - 8}" x="${x + w / 2}" y="76" text-anchor="middle" fill="#14181c">${lab}</text>`
+      x += w
+      return s
+    }).join('')
+    return out + (note ? `<text class="t2" data-w="344" x="180" y="124" text-anchor="middle">${note}</text>` : '')
+  },
+  duo({ a, b, note }) {
+    const card = ([lab, big, sub, col], x) => `<g class="pop"><rect x="${x}" y="14" width="166" height="108" rx="8" fill="${col ?? '#fff'}" stroke="#14181c" stroke-width="2.5"/>
+      <text class="t2" data-w="150" x="${x + 83}" y="38" text-anchor="middle" font-weight="700">${lab}</text>
+      <text class="t3" data-w="150" x="${x + 83}" y="82" text-anchor="middle">${big}</text>
+      <text class="t2" data-w="154" x="${x + 83}" y="106" text-anchor="middle">${sub}</text></g>`
+    return card(a, 10) + card(b, 184) + (note ? `<text class="t2" data-w="344" x="180" y="144" text-anchor="middle">${note}</text>` : '')
+  },
+  gauge({ v = 0.5, lab }) {
+    const a = (v - 0.5) * 150
+    return `<path d="M60 120 A120 120 0 0 1 300 120" fill="#fff" stroke="#14181c" stroke-width="3"/>
+      ${[0, .25, .5, .75, 1].map((t) => { const r = (-90 + (t - 0.5) * 150) * Math.PI / 180; return `<line x1="${180 + 100 * Math.sin(r + 0)}" y1="${120 - 100 * Math.cos(r)}" x2="${180 + 112 * Math.sin(r)}" y2="${120 - 112 * Math.cos(r)}" stroke="#14181c" stroke-width="2"/><text class="t2" x="${180 + 128 * Math.sin(r)}" y="${124 - 128 * Math.cos(r) + 4}" text-anchor="middle" style="font-size:12px">${t}</text>` }).join('')}
+      <g transform="translate(180 120)"><line class="fade" style="--d:.2s;transform:rotate(${a}deg)" x1="0" y1="0" x2="0" y2="-92" stroke="#d81e2e" stroke-width="5" stroke-linecap="round"/></g>
+      <circle cx="180" cy="120" r="9" fill="#14181c"/>
+      ${lab ? `<text class="t1" x="180" y="146" text-anchor="middle">${lab}</text>` : ''}`
+  },
+  lock({ open = false, note }) {
+    return `<g class="pop"><rect x="140" y="64" width="80" height="62" rx="8" fill="${open ? '#1f9d3a' : '#ffb000'}" stroke="#14181c" stroke-width="3"/>
+      <path d="${open ? 'M156 64 V44 a24 24 0 0 1 48 0 v6' : 'M156 64 V48 a24 24 0 0 1 48 0 V64'}" fill="none" stroke="#14181c" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="180" cy="90" r="7" fill="#14181c"/><rect x="177" y="92" width="6" height="18" fill="#14181c"/></g>
+      ${note ? `<text class="t2" data-w="344" x="180" y="144" text-anchor="middle">${note}</text>` : ''}`
+  },
+  range({ lo, hi, min, max, note, est }) {
+    const X = (v) => 20 + (v - min) / (max - min) * 320
+    let t = ''
+    for (let k = Math.ceil(min); k <= max; k++) t += `<line x1="${X(k)}" y1="78" x2="${X(k)}" y2="86" stroke="#14181c" stroke-width="2"/><text class="t2" x="${X(k)}" y="104" text-anchor="middle">${k}</text>`
+    return `<line x1="20" y1="82" x2="340" y2="82" stroke="#14181c" stroke-width="3"/>${t}
+      <line x1="${X(0)}" y1="30" x2="${X(0)}" y2="82" stroke="#d81e2e" stroke-width="3" stroke-dasharray="5 4"/><text class="t2" x="${X(0)}" y="24" text-anchor="middle" fill="#d81e2e" style="fill:#d81e2e">sin mejora</text>
+      <rect class="grow" x="${X(lo)}" y="64" width="${X(hi) - X(lo)}" height="12" rx="3" fill="#ffb000" stroke="#14181c" stroke-width="2.5"/>
+      <circle class="pop" style="--d:.5s" cx="${X(est)}" cy="70" r="8" fill="#14181c"/>
+      <text class="t2" data-w="344" x="180" y="136" text-anchor="middle">${note}</text>`
+  },
+  whisk({ rows, min, max, note }) {
+    const X = (v) => 90 + (v - min) / (max - min) * 240
+    const h = 22, gap = 12, y0 = 14
+    return rows.map(([lab, v, e, col], i) => {
+      const y = y0 + i * (h + gap)
+      return `<text class="t2" x="8" y="${y + 16}">${lab}</text>
+        <rect class="grow" style="--d:${i * 0.15}s" x="${X(0)}" y="${y}" width="${X(v) - X(0)}" height="${h}" fill="${col}" stroke="#14181c" stroke-width="2"/>
+        <line x1="${X(v - e)}" y1="${y + h / 2}" x2="${X(v + e)}" y2="${y + h / 2}" stroke="#14181c" stroke-width="3"/>
+        <line x1="${X(v - e)}" y1="${y + 4}" x2="${X(v - e)}" y2="${y + h - 4}" stroke="#14181c" stroke-width="3"/>
+        <line x1="${X(v + e)}" y1="${y + 4}" x2="${X(v + e)}" y2="${y + h - 4}" stroke="#14181c" stroke-width="3"/>`
+    }).join('') + `<line x1="${X(0)}" y1="6" x2="${X(0)}" y2="${y0 + rows.length * (h + gap)}" stroke="#14181c" stroke-width="2"/>
+      <text class="t2" data-w="344" x="180" y="146" text-anchor="middle">${note}</text>`
+  },
+}
+
+/* ------------------------------------------------------------------ contenido (FAQ por fase)
+   Las cifras marcadas "ejemplo" ilustran la idea; las del escenario vienen del proyecto. */
+const E = {}
+const add = (id, d) => { E[id] = { id, ...d } }
+
+add('datos', {
+  kicker: 'Laboratorio · materia prima', q: '¿Con qué aprende la máquina?',
+  short: 'Con 5 109 personas, de las cuales 249 tuvieron un ACV.',
+  slides: [
+    { t: 'Casi nadie tuvo el evento', p: 'De cada 20 personas, <b>solo 1</b> sufrió un ACV. Es el dato que la máquina debe aprender a reconocer.', v: V.dots({ n: 20, cols: 10, hot: [13], note: 'cada círculo es una persona; proporción real' }) },
+    { t: 'La edad pesa muchísimo', p: 'De los menores de 40, <b>0.17 %</b> tuvo un ACV; de los mayores de 70, <b>16.9 %</b>. Por eso una regla simple por edad ya funciona.', v: V.bars({ max: 17, rows: [['Menos de 40', 0.17, '#6f777d', '0.17 %'], ['40 a 49', 2.02, '#ffb000', '2.0 %'], ['50 a 59', 6.89, '#ffb000', '6.9 %'], ['60 a 69', 8.9, '#d81e2e', '8.9 %'], ['70 o más', 16.9, '#d81e2e', '16.9 %']] }) },
+  ],
+  decide: { eleg: 'Explorar y modelar solo con el 80 % de entrenamiento.', desc: 'Todo el análisis exploratorio se hace sin tocar el 20 % reservado.', no: 'Mirar todo el conjunto "para entender mejor": se filtraría información de la prueba y la nota final dejaría de ser creíble.' },
+  ej: { v: '4.9', l: '% de personas con ACV', n: '249 de 5 109 · dato real' },
+})
+
+add('part', {
+  kicker: 'Laboratorio · reparto', q: '¿Por qué se parte el dato 80 / 20 antes de empezar?',
+  short: 'El 20 % se aparta antes de mirar nada: es el examen final.',
+  slides: [
+    { t: 'Se reparte primero', p: 'Antes de explorar o entrenar, se separa una parte: <b>4 087 pacientes</b> (199 casos) para trabajar y <b>1 022</b> (50 casos) para el examen.', v: V.split({ parts: [['Entrenamiento 80 %', 0.8, '#ffb000'], ['Prueba', 0.2, '#1f9d3a']], note: '4 087 pacientes · 1 022 pacientes' }) },
+    { t: 'Con la misma proporción de casos', p: 'El reparto es <b>estratificado</b>: los casos raros se reparten parejo, para que la prueba tenga suficientes.', v: V.dots({ n: 40, cols: 20, hot: [3, 9, 17, 25, 33, 37], note: 'los casos (rojo) caen en ambos lados (ilustración)' }) },
+    { t: 'El 20 % queda guardado', p: 'Esa parte va a la bóveda y no se vuelve a mirar hasta el final.', v: V.lock({ note: 'sellada hasta el final' }) },
+  ],
+  decide: { eleg: 'Reserva fija del 20 %, estratificada.', desc: 'La nota se mide con datos que el modelo jamás vio.', no: 'Solo validación cruzada sin reserva: al ajustar varias veces sobre los mismos datos, la nota sale optimista.' },
+  ej: { v: '1022', l: 'pacientes en la prueba sellada', n: '20 % del dato · real' },
+})
+
+add('boveda', {
+  kicker: 'Laboratorio · prueba sellada', q: '¿Por qué la bóveda se abre una sola vez?',
+  short: 'Si la prueba se mira para decidir, deja de ser prueba.',
+  slides: [
+    { t: 'Un examen con las respuestas filtradas', p: 'Si alguien ve el examen antes y ajusta lo que estudia, la nota ya no dice nada. Igual con los datos: <b>cada vistazo contamina</b>.', v: V.lock({ note: 'durante todo el trabajo: cerrada' }) },
+    { t: 'Primero se fija todo', p: 'Se elige el modelo y el umbral usando solo entrenamiento. <b>Cuando ya nada puede cambiar</b>, se abre.', v: V.chain({ items: ['Elegir', 'Fijar umbral', 'Abrir'], hot: 2 }) },
+    { t: 'Un solo resultado, sin repetir', p: 'Se mide una vez y se reporta lo que salga, incluso si decepciona.', v: V.lock({ open: true, note: '1 022 pacientes · 50 casos' }) },
+  ],
+  decide: { eleg: 'Abrir la bóveda una única vez, con el umbral ya fijo.', desc: 'El resultado es honesto, aunque ancho: 50 casos dan poca precisión.', no: 'Usar la prueba para escoger modelo: sube la nota aparente pero no se sabe qué tan bien funciona en la vida real.' },
+  ej: { v: '50', l: 'casos en la prueba', n: 'de 1 022 pacientes · real' },
+})
+
+add('pipe', {
+  kicker: 'Laboratorio · preparación', q: '¿Qué le pasa al dato antes de llegar al modelo?',
+  short: 'Se rellenan vacíos, se igualan escalas y las palabras pasan a números.',
+  slides: [
+    { t: 'Imputar: rellenar los vacíos', p: 'Faltan <b>201 valores de IMC</b>. Se rellenan con un valor típico, calculado solo con el entrenamiento.', v: V.dots({ n: 20, cols: 10, grey: [4, 12, 17], note: 'gris = dato faltante (ilustración)' }) },
+    { t: 'Escalar: una misma regla de medir', p: 'La edad se mide en años y la glucosa en mg/dL: números de tamaños muy distintos. Sin igualar, <b>el número grande domina</b> aunque no importe más.', v: V.bars({ rows: [['Edad (años)', 0.35, '#6f777d', 'chica'], ['Glucosa (mg/dL)', 0.95, '#6f777d', 'grande'], ['Ambas en z', 0.5, '#ffb000', 'iguales']] }) },
+    { t: 'Codificar: palabras a números', p: 'Una categoría como "fumador" se convierte en columnas de 0 y 1 (<b>one-hot</b>), que el modelo sí entiende. El 30.2 % de la columna de fumador dice "unknown" y se trata como una categoría más.', v: V.chain({ items: ['fumador', 'ex-fumador', 'nunca'], sub: ['1 0 0', '0 1 0', '0 0 1'] }) },
+  ],
+  decide: { eleg: 'Todo el preprocesado en un pipeline que se reajusta dentro de cada fold.', desc: 'Medias y valores típicos se aprenden solo con el entrenamiento de ese fold.', no: 'Preparar todo el dato una vez: es cómodo, pero las estadísticas de los datos de evaluación se filtran al entrenamiento (fuga).' },
+  ej: { v: '201', l: 'valores de IMC faltantes', n: 'se imputan · dato real' },
+})
+
+add('smote', {
+  kicker: 'Laboratorio · balanceo', q: '¿Qué es SMOTE y por qué solo en el entrenamiento del fold?',
+  short: 'Crea casos sintéticos para que la máquina no ignore los raros. Nunca toca la evaluación.',
+  slides: [
+    { t: 'Con tan pocos casos, la máquina los ignora', p: 'Si 19 de 20 personas no tienen el evento, <b>"nadie lo tendrá"</b> es una respuesta cómoda.', v: V.dots({ n: 20, cols: 10, hot: [6] }) },
+    { t: 'SMOTE fabrica casos parecidos', p: 'Toma un caso real y crea vecinos intermedios. Así el modelo ve <b>más ejemplos del evento</b>.', v: V.dots({ n: 20, cols: 10, hot: [6], syn: [7, 8, 13, 16], note: 'amarillo = casos sintéticos' }) },
+    { t: 'Solo para estudiar, nunca para el examen', p: 'Se aplica únicamente a los datos de entrenamiento del fold. <b>La evaluación queda con pacientes reales</b>.', v: V.chain({ items: ['Entrenar + SMOTE', 'Evaluar sin tocar'], hot: 0 }) },
+  ],
+  decide: { eleg: 'SMOTE dentro de cada fold, solo sobre el entrenamiento.', desc: 'Es una de las cinco variantes que se comparan, no una verdad asumida.', no: 'Aplicarlo antes de partir: copias casi idénticas caen en ambos lados y la nota se infla. Trade-off: los casos sintéticos no son personas reales.' },
+  ej: { v: '4.9', l: '% de casos: los raros', n: 'por eso SMOTE · dato real' },
+})
+
+add('eval', {
+  kicker: 'Laboratorio · medición', q: '¿Cómo sabemos si el modelo sirve de verdad?',
+  short: 'Se compara con la regla actual usando el mismo número de citas.',
+  slides: [
+    { t: 'La misma cantidad de citas', p: 'Comparar justo exige el <b>mismo presupuesto</b>: la regla cita al 30.8 %. Con esas citas, ¿quién capta más casos?', v: V.duo({ a: ['Regla', '30.8 %', 'de afiliados citados', '#fff'], b: ['Modelo', '30.8 %', 'mismo número de citas', '#ffb000'], note: 'umbral ajustado para citar igual' }) },
+    { t: 'Se cuentan casos captados', p: 'Cada evaluación tiene unos 40 casos. La nota es cuántos quedan dentro de las citas: <b>casos extra</b> frente a la regla.', v: V.duo({ a: ['Regla', '31.0', 'de 39.8 casos', '#fff'], b: ['Modelo', '32.8', 'de 39.8 casos', '#ffb000'], note: 'promedio de 20 evaluaciones (+1.75)' }) },
+    { t: 'Y se repite 20 veces', p: 'Cinco particiones repetidas cuatro veces. Así se ve <b>cuánto varía</b> el resultado y no solo un golpe de suerte.', v: V.dots({ n: 20, cols: 10, grey: [], hot: [], note: '20 evaluaciones independientes' }) },
+  ],
+  decide: { eleg: 'Casos captados con las mismas citas, en validación cruzada anidada.', desc: 'Responde lo que le importa al programa: ¿atrapamos más personas con el mismo gasto?', no: 'Exactitud global: con 1 de cada 20 casos, un modelo que dice "nadie" acierta 95 % y no sirve de nada.' },
+  ej: { v: '20', l: 'evaluaciones por modelo', n: '5 particiones × 4 repeticiones · real' },
+})
+
+add('modelos', {
+  kicker: 'Laboratorio · candidatos', q: '¿Por qué se prueban cinco variantes y no una sola?',
+  short: 'Porque no se sabe de antemano cuál funciona mejor: se les deja competir.',
+  slides: [
+    { t: 'Cinco candidatos', p: 'Desde la regresión logística (simple) hasta random forest y gradient boosting (flexibles). Cada barra es <b>cuántos casos extra</b> logra sobre la regla.', v: V.bars({ max: 2.4, rows: FILAS.map(([n, , x]) => [n, Math.abs(x), x < 0 ? '#d81e2e' : '#1f9d3a', (x > 0 ? '+' : '−') + Math.abs(x).toFixed(2)]) }) },
+    { t: 'Cada uno con sus ajustes', p: 'Las perillas de cada modelo se prueban en una grilla: <b>57 configuraciones</b> en total (10, 10, 10, 15 y 12). Se elige la mejor <b>dentro</b> del entrenamiento (lazo punteado).', v: V.chain({ items: ['Grilla', 'Mejor conf.', 'Evaluar'], hot: 1 }) },
+    { t: 'Las lámparas son las 20 evaluaciones', p: 'Verde: captó más casos que la regla. Rojo: menos. Gris: igual. La logística ganó en <b>15 de 20</b>: hay verdes y rojos mezclados, eso es el ruido.', v: `<g>${lampara(0).map((c, j) => `<rect class="pop" style="--d:${j * 0.04}s" x="${25 + j * 16}" y="56" width="12" height="38" rx="3" fill="${c === 'v' ? '#1f9d3a' : c === 'r' ? '#d81e2e' : '#aab0b4'}" stroke="#14181c" stroke-width="1.5"/>`).join('')}</g><text class="t2" data-w="344" x="180" y="128" text-anchor="middle">una lámpara por evaluación · regresión logística (real)</text>` },
+  ],
+  decide: { eleg: 'Comparar varias familias con la misma regla de medida.', desc: 'La simple (logística) es el punto de partida; las demás deben ganarle por mucho.', no: 'Probar solo la favorita: no sabríamos si la flexible aportaba algo. Trade-off: más intentos, más riesgo de ganar por suerte; por eso la evaluación anidada.' },
+  ej: { v: '57', l: 'configuraciones totales', n: '10 + 10 + 10 + 15 + 12 · real' },
+})
+
+add('sel', {
+  kicker: 'Laboratorio · decisión', q: '¿Cómo se escoge al ganador?',
+  short: 'Con una regla fijada de antemano: más casos con las mismas citas; si hay empate, el más simple.',
+  slides: [
+    { t: 'Tres criterios, tres ganadores', p: 'Por <b>PR-AUC</b> ganaría gradient boosting; por <b>casos extra</b>, random forest; por la <b>regla previa</b>, la regresión logística.', v: V.chain({ items: ['PR-AUC', 'Casos extra', 'Regla previa'], hot: 2, sub: ['Gradient boosting', 'Random forest', 'Reg. logística'] }) },
+    { t: 'La ventaja del bosque cabe en el ruido', p: 'Random forest capta <b>+2.40</b> y la logística <b>+1.75</b>: 0.65 de diferencia, contra una variación de 1.55. <b>La ventaja cabe en el ruido.</b>', v: V.whisk({ min: -1, max: 4.5, rows: [['Reg. logística', 1.75, 1.55, '#1f9d3a'], ['Random forest', 2.4, 1.67, '#ffb000']], note: 'barra = promedio · línea = ±1 desviación (real)' }) },
+    { t: 'Si empatan, gana el más simple', p: 'Menos parámetros, más fácil de explicar y menos chance de haber ganado por azar. <b>Se eligió la logística.</b>', v: V.lock({ open: true, note: 'criterio fijado antes de abrir la prueba' }) },
+  ],
+  decide: { eleg: 'Regla de selección escrita antes de ver resultados.', desc: 'Evita escoger a posteriori lo que mejor se vea.', no: 'Quedarse con el de mayor puntaje bruto. Trade-off: se renuncia a un posible +0.65 casos a cambio de simplicidad y honestidad.' },
+  ej: { v: '1.75', l: 'casos extra de cada 40', n: 'regresión logística · real' },
+})
+
+add('afil', {
+  kicker: 'Operación · escenario supuesto', q: '¿A quién va dirigido el programa?',
+  short: 'A los afiliados: de cada 1 000, unos 49 sufrirán un ACV.',
+  slides: [
+    { t: 'Muchos afiliados, pocos casos', p: 'En el escenario hay <b>1 000 afiliados</b> con la tasa real del dato (4.87 %): unos <b>49</b> tendrán el evento. Hay que encontrarlos.', v: V.dots({ n: 40, cols: 20, hot: [6, 23], note: 'ilustración: 2 de cada 40 ≈ 49 de 1 000' }) },
+    { t: 'No hay cupo para todos', p: 'Citar a todos a control cuesta demasiado. El programa debe <b>priorizar</b> a quién llamar.', v: V.split({ parts: [['Cita 30.8 %', 0.308, '#ffb000'], ['Sin cita 69.2 %', 0.692, '#dcdfe1']], note: 'lo que cita hoy la regla (real)' }) },
+  ],
+  decide: { eleg: 'Probar la idea sobre un escenario supuesto.', desc: 'Así se muestra el efecto práctico sin inventar datos de operación reales.', no: 'Presentar el escenario como medición real: no lo es, y el tablero lo dice.' },
+  ej: { v: '49', l: 'casos por cada 1 000 afiliados', n: 'tasa real aplicada a un escenario' },
+})
+
+add('regla', {
+  kicker: 'Operación · punto de partida', q: '¿Qué hace hoy la regla actual?',
+  short: 'Cita a quien tenga 60 años o más, o hipertensión.',
+  slides: [
+    { t: 'Dos preguntas y listo', p: 'Si la persona tiene <b>60 años o más</b>, o <b>hipertensión</b>, se cita. En otro caso, no.', v: V.chain({ items: ['Edad ≥ 60', 'o Hipertensión', 'Cita'], hot: 2 }) },
+    { t: 'Simple, pero deja casos fuera', p: 'Es fácil de explicar y de aplicar. Su límite: <b>no mira nada más</b> y deja sin cita a personas de menos de 60 que sí enferman.', v: V.duo({ a: ['Con cita', '308', '38 casos', '#ffb000'], b: ['Sin cita', '692', '11 casos', '#fff'], note: 'por cada 1 000 afiliados (cifras reales de la regla)' }) },
+  ],
+  decide: { eleg: 'Conservar la regla como línea base.', desc: 'El modelo no tiene que ser bueno "en general": tiene que ganarle a esto.', no: 'Compararlo contra nada: cualquier cifra sonaría impresionante sin un punto de referencia.' },
+  ej: { v: '77.9', l: '% de casos que capta la regla', n: 'citando al 30.8 % · real' },
+})
+
+add('modelo', {
+  kicker: 'Operación · el cerebro', q: '¿Qué hace el modelo con cada persona?',
+  short: 'Le da un puntaje de 0 a 1 según su riesgo.',
+  slides: [
+    { t: 'Un puntaje de riesgo', p: 'Mira edad, glucosa, hipertensión y más, y <b>suma evidencia</b> hasta dar un número entre 0 y 1.', v: V.gauge({ v: 0.7, lab: '0.70' }) },
+    { t: 'Es explicable', p: 'La regresión logística permite ver <b>cuánto pesa cada dato</b>. Las tres variables más asociadas al ACV (correlación) son edad, hipertensión y glucosa.', v: V.bars({ max: 0.3, rows: [['Edad', 0.244, '#d81e2e', '0.244'], ['Hipertensión', 0.137, '#ffb000', '0.137'], ['Glucosa', 0.129, '#ffb000', '0.129']] }) },
+    { t: 'Un puntaje aún no es una decisión', p: 'Falta decidir <b>desde qué número</b> se cita. Eso lo hace el umbral.', v: V.chain({ items: ['Puntaje', 'Umbral', 'Cita'], hot: 1 }) },
+  ],
+  decide: { eleg: 'Regresión logística.', desc: 'Casi tan buena como las flexibles y mucho más fácil de defender.', no: 'Random forest o gradient boosting: captan algo más, pero son cajas negras y su ventaja no se distingue del ruido.' },
+  ej: { v: '0.84', l: 'AUC en la prueba', n: 'qué tan bien ordena a las personas · real' },
+})
+
+add('umbral', {
+  kicker: 'Operación · el corte', q: '¿Qué es el umbral y quién lo mueve?',
+  short: 'Es el puntaje desde el cual se cita. Sube o baja el número de citas.',
+  slides: [
+    { t: 'Una línea en el puntaje', p: 'Quien queda <b>por encima</b> de la línea recibe cita; quien queda debajo, no.', v: `<line x1="20" y1="90" x2="340" y2="90" stroke="#14181c" stroke-width="3"/>${[30, 55, 80, 105, 140, 170, 215, 240, 270, 300, 320].map((x, i) => `<circle class="pop" style="--d:${i * 0.05}s" cx="${x}" cy="${i % 2 ? 76 : 104}" r="9" fill="${x > 185 ? '#ffb000' : '#fff'}" stroke="#14181c" stroke-width="2"/>`).join('')}<line x1="185" y1="30" x2="185" y2="130" stroke="#d81e2e" stroke-width="4"/><text class="t2" x="185" y="24" text-anchor="middle">umbral</text>` },
+    { t: 'Moverlo tiene precio', p: 'Para captar <b>70 %</b> de los casos hay que citar al 23.6 %; para <b>80 %</b>, al 28.5 %; para <b>90 %</b>, al 38.9 %.', v: V.bars({ max: 0.45, rows: [['Recall 70 %', 0.236, '#6f777d', 'cita 23.6 %'], ['Recall 80 %', 0.285, '#ffb000', 'cita 28.5 %'], ['Recall 90 %', 0.389, '#d81e2e', 'cita 38.9 %']] }) },
+    { t: 'Se fija sin mirar la bóveda', p: 'Se calcula con el entrenamiento para lograr un recall de 0.80: sale <b>0.504</b>. <b>Después ya no se toca.</b>', v: V.gauge({ v: 0.504, lab: '0.504' }) },
+  ],
+  decide: { eleg: 'Umbral que cita igual que la regla, calculado con entrenamiento.', desc: 'Hace la comparación justa: mismo gasto, más casos.', no: 'Ajustarlo hasta que el resultado en la prueba se vea bien: es la forma más común de engañarse.' },
+  ej: { v: '0.504', l: 'umbral final', n: 'fijado con entrenamiento · real' },
+})
+
+add('citas', {
+  kicker: 'Operación · resultado', q: '¿Cuántas personas se citan y qué se gana?',
+  short: 'Las citas son el recurso escaso: el objetivo es captar más casos con las mismas.',
+  slides: [
+    { t: 'Dos puertas, una sola bolsa', p: 'Tanto la regla como el modelo envían personas a citas. El gasto es el mismo si <b>cuentan igual</b>.', v: V.chain({ items: ['Regla', 'Cita', 'Modelo'], hot: 1 }) },
+    { t: 'En la prueba sellada', p: 'El modelo captó el <b>80 %</b> de los casos citando al <b>29.0 %</b>; la regla, el 78 % citando al 31.3 %. Un caso más con menos citas: mejora real, <b>pero moderada</b>.', v: V.duo({ a: ['Regla', '78 %', 'recall · cita 31.3 %', '#fff'], b: ['Modelo', '80 %', 'recall · cita 29.0 %', '#ffb000'] }) },
+  ],
+  decide: { eleg: 'Mantener el presupuesto de citas igual al de la regla.', desc: 'Así la mejora no depende de gastar más.', no: 'Dejar subir las citas: siempre se capturan más casos citando más, no demuestra nada.' },
+  ej: { v: '29.0', l: '% de afiliados citados', n: 'modelo en la prueba · real' },
+})
+
+add('sin', {
+  kicker: 'Operación · lo que se escapa', q: '¿Y los casos que nadie atrapa?',
+  short: 'Siempre quedan algunos sin cita. Decirlo es parte del trabajo.',
+  slides: [
+    { t: 'Nadie atrapa a todos', p: 'En el escenario quedan <b>11 casos sin cita</b>. Ninguna regla ni modelo llega al 100 %.', v: V.dots({ n: 20, cols: 10, hot: [3, 14], note: 'ilustración' }) },
+    { t: 'Los menores de 60 son el punto débil', p: 'El modelo capta <b>35 %</b> de los casos de menos de 60 años (la regla, 22 %). Mejor, pero <b>sigue dejando fuera a casi 2 de cada 3</b>.', v: V.bars({ rows: [['Regla', 0.22, '#6f777d', '22 %'], ['Modelo', 0.35, '#ffb000', '35 %']] }) },
+  ],
+  decide: { eleg: 'Reportar el límite en vez de esconderlo.', desc: 'Una limitación explicada genera más confianza que una cifra perfecta.', no: 'Presentar solo el promedio general: ocultaría que el modelo falla justo donde más se quisiera.' },
+  ej: { v: '11', l: 'casos sin cita por cada 1 000', n: 'con la regla actual · real' },
+})
+
+add('a-desbalance', {
+  kicker: 'Anunciador', q: '¿Qué significa "desbalance 1:20"?',
+  short: 'Por cada caso hay unas 20 personas sin el evento.',
+  slides: [
+    { t: 'Un caso entre veinte', p: 'Solo el <b>4.87 %</b> tuvo el evento (249 de 5 109): cerca de 1 en 20. Es normal en salud y <b>complica el aprendizaje</b>.', v: V.dots({ n: 20, cols: 10, hot: [11] }) },
+    { t: 'La exactitud engaña', p: 'Un "modelo" que responde <b>"nadie tendrá ACV"</b> acierta el 95.1 % y no atrapa a ningún caso.', v: V.duo({ a: ['Exactitud', '95.1 %', 'decir siempre "no"', '#fff'], b: ['Casos captados', '0', 'inútil', '#d81e2e'] }) },
+  ],
+  decide: { eleg: 'Medir casos captados, no exactitud; probar SMOTE.', desc: 'Las métricas se escogen para este problema.', no: 'Usar la exactitud por defecto.' },
+  ej: { v: '95.1', l: '% de exactitud de decir "nadie"', n: '1 − 0.0487 · real' },
+})
+
+add('a-fuga', {
+  kicker: 'Anunciador', q: '¿Qué es la fuga de datos y cómo se bloquea?',
+  short: 'Que información del examen se cuele al estudio. Aquí está tapada en tres puntos.',
+  slides: [
+    { t: 'La respuesta antes del examen', p: 'Si el modelo ve algo de los datos de evaluación al entrenar, <b>la nota sale bonita y falsa</b>.', v: V.chain({ items: ['Evaluación', 'se cuela', 'Entrenamiento'], hot: 1 }) },
+    { t: 'Tres candados', p: '<b>1)</b> la bóveda está sellada. <b>2)</b> el pipeline se ajusta dentro de cada fold. <b>3)</b> SMOTE no toca la evaluación.', v: V.lock({ note: 'las barras rojas del tablero' }) },
+  ],
+  decide: { eleg: 'Diseñar para que la fuga sea imposible, no solo improbable.', desc: 'Cada barra roja del diagrama es un candado de esos.', no: 'Confiar en "tener cuidado".' },
+  ej: { v: '3', l: 'candados contra la fuga', n: 'bóveda · pipeline · SMOTE' },
+})
+
+add('a-empate', {
+  kicker: 'Anunciador', q: '¿Qué es un empate en el ruido?',
+  short: 'Cuando la diferencia entre dos modelos es más chica que la variación entre repeticiones.',
+  slides: [
+    { t: 'Cada medida tiene margen', p: 'Si se repite la prueba, el resultado cambia un poco. Ese <b>margen</b> es el ruido.', v: V.whisk({ min: -1, max: 4.5, rows: [['Reg. logística', 1.75, 1.55, '#1f9d3a'], ['Random forest', 2.4, 1.67, '#ffb000']], note: 'los márgenes se traslapan (real)' }) },
+    { t: 'Si se traslapan, es empate', p: 'No se puede afirmar que uno sea mejor. <b>Gana el más simple</b>, porque cuesta menos y se explica mejor.', v: V.lock({ open: true, note: 'regla de desempate fijada de antemano' }) },
+  ],
+  decide: { eleg: 'Declarar el empate y aplicar el criterio de simplicidad.', desc: 'Es honesto: no se vende una mejora que los datos no sostienen.', no: 'Escoger el mayor puntaje por pequeño que sea el margen.' },
+  ej: { v: '1.55', l: 'ruido de la logística (casos)', n: 'desviación entre 20 evaluaciones · real' },
+})
+
+add('a-prueba', {
+  kicker: 'Anunciador', q: '¿Qué significa "prueba abierta"?',
+  short: 'Que la bóveda ya se usó una vez y el resultado final existe.',
+  slides: [
+    { t: 'El examen ya se rindió', p: 'Se abrió <b>una sola vez</b>, con el umbral ya fijo. Ya no hay vuelta atrás.', v: V.lock({ open: true }) },
+    { t: 'Lo que salió', p: 'Recall de <b>0.80</b> y <b>+1 caso</b> frente a la regla. Mejora real pero modesta, y lo decimos tal cual.', v: V.duo({ a: ['Recall', '0.80', 'en la prueba', '#ffb000'], b: ['Casos extra', '+1', 'frente a la regla', '#fff'] }) },
+  ],
+  decide: { eleg: 'Reportar el resultado aunque no luzca.', desc: 'La credibilidad vale más que una cifra bonita.', no: 'Abrir de nuevo si no gustó.' },
+  ej: { v: '0.80', l: 'recall en la prueba', n: '40 de 50 casos · real' },
+})
+
+add('a-ic', {
+  kicker: 'Anunciador', q: '¿Qué dice el intervalo de confianza que incluye 0?',
+  short: 'Que con 50 casos no se puede asegurar que la mejora exista.',
+  slides: [
+    { t: 'Un rango de valores plausibles', p: 'El <b>IC 95 %</b> da el rango en que probablemente está la mejora verdadera. En la prueba: de <b>0 a 4 casos</b> extra.', v: V.range({ lo: 0, hi: 4, min: -1, max: 5, est: 1, note: 'mejora de +1 caso, IC de 0 a 4' }) },
+    { t: 'Incluye el 0', p: 'Es posible que la mejora sea <b>cero</b>. Con solo 50 casos en la prueba no alcanza para demostrarla: sirve de <b>indicio</b>, no de prueba.', v: V.range({ lo: 0, hi: 4, min: -1, max: 5, est: 1, note: 'el rojo cae dentro del rango' }) },
+  ],
+  decide: { eleg: 'Apoyar la conclusión en la validación anidada (20 evaluaciones) y usar la prueba como confirmación.', desc: 'Dos fuentes de evidencia, dichas con sus límites.', no: 'Afirmar que el modelo "es mejor" con la prueba sola.' },
+  ej: { v: '0–4', l: 'IC 95 % de los casos extra', n: 'prueba de 50 casos · real' },
+})
+
+add('m-recall', {
+  kicker: 'Medidor', q: '¿Qué mide el recall?',
+  short: 'De todos los casos reales, cuántos quedaron dentro de las citas.',
+  slides: [
+    { t: 'Casos atrapados entre casos totales', p: 'Si hay 100 casos y <b>80</b> reciben cita, el recall es <b>80 %</b>.', v: V.dots({ n: 20, cols: 10, hot: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], grey: [16, 17, 18, 19], note: 'rojo = caso atrapado · gris = caso perdido' }) },
+    { t: 'La meta es 80', p: 'Es la marca roja del medidor. La validación dio <b>79.7 %</b> y la prueba sellada, <b>80.0 %</b> (40 de 50 casos).', v: V.bars({ rows: [['Meta', 0.8, '#d81e2e', '80 %'], ['Validación', 0.7965, '#ffb000', '79.7 %'], ['Prueba', 0.8, '#1f9d3a', '80.0 %']] }) },
+  ],
+  decide: { eleg: 'Perseguir recall con las citas fijas.', desc: 'En prevención, perder un caso es más grave que citar a uno de más.', no: 'Optimizar precisión: dejaría a más gente enferma sin cita.' },
+  ej: { v: '80.0', l: 'recall % en la prueba', n: '40 de 50 casos · real' },
+})
+add('m-citados', {
+  kicker: 'Medidor', q: '¿Qué mide "citados %"?',
+  short: 'Qué porcentaje de afiliados recibe cita: es el costo del programa.',
+  slides: [
+    { t: 'El costo en una cifra', p: 'Cada punto porcentual de citados son <b>consultas, tiempo y dinero</b>.', v: V.split({ parts: [['Citados 29.0 %', 0.2896, '#ffb000'], ['Resto 71.0 %', 0.7104, '#dcdfe1']], note: 'modelo en la prueba sellada (real)' }) },
+    { t: 'Se compara a igual costo', p: 'Modelo y regla deben citar <b>lo mismo</b> (en validación se igualan). Si el modelo citara más, la mejora no contaría.', v: V.duo({ a: ['Regla', '31.3 %', 'citados', '#fff'], b: ['Modelo', '29.0 %', 'citados', '#ffb000'], note: 'en la prueba, el modelo cita algo menos' }) },
+  ],
+  decide: { eleg: 'Fijar el porcentaje de citas igual al de la regla.', desc: 'Aísla el efecto del modelo del efecto de gastar más.', no: 'Dejar libre el número de citas.' },
+  ej: { v: '29.0', l: 'citados % del modelo', n: 'prueba sellada · real' },
+})
+add('m-extra', {
+  kicker: 'Medidor', q: '¿Qué son los "casos extra de cada 40"?',
+  short: 'Cuántos casos más que la regla capta el modelo, por cada 40 casos reales.',
+  slides: [
+    { t: 'La ganancia en casos', p: 'La regla capta 31.0 de 39.8 casos por evaluación y el modelo 32.8: <b>+1.75 casos extra</b>.', v: V.duo({ a: ['Regla', '31.0', 'de 39.8 casos', '#fff'], b: ['Modelo', '32.8', 'de 39.8 casos', '#ffb000'], note: 'promedio de 20 evaluaciones' }) },
+    { t: 'Mejora real pero moderada', p: 'Es <b>+1.75</b> con ± 1.55 de ruido, y ganó en <b>15 de 20</b> evaluaciones: hay que <b>decirlo con humildad</b>.', v: V.whisk({ min: -1, max: 4.5, rows: [['Reg. logística', 1.75, 1.55, '#1f9d3a']], note: 'promedio ± ruido' }) },
+  ],
+  decide: { eleg: 'Reportar la ganancia con su variación.', desc: 'Promete lo que se puede defender.', no: 'Prometer una mejora grande: el piloto mostró que no era alcanzable.' },
+  ej: { v: '1.75', l: 'casos extra por evaluación', n: 'validación anidada · real' },
+})
+add('m-umbral', {
+  kicker: 'Medidor', q: '¿Qué muestra el medidor de umbral?',
+  short: 'El corte de puntaje a partir del cual se cita.',
+  slides: [
+    { t: 'El mismo corte del dial', p: 'La aguja del diagrama y este medidor muestran el <b>mismo número</b>.', v: V.gauge({ v: 0.504, lab: '0.504' }) },
+    { t: 'Sube o baja con el presupuesto', p: 'Pedir más recall baja el umbral y cita a más gente. Una vez fijado, <b>no se mueve</b>.', v: V.bars({ max: 0.65, rows: [['Recall 70 %', 0.5826, '#6f777d', '0.583'], ['Recall 80 %', 0.504, '#ffb000', '0.504'], ['Recall 90 %', 0.3585, '#6f777d', '0.359']] }) },
+  ],
+  decide: { eleg: 'Un umbral único, fijado con entrenamiento.', desc: 'Es lo último que se decide antes de abrir la bóveda.', no: 'Reajustarlo con cada cifra nueva.' },
+  ej: { v: '0.504', l: 'umbral final', n: 'para recall 0.80 · real' },
+})
+add('m-eval', {
+  kicker: 'Medidor', q: '¿Qué cuenta "evaluación n/20"?',
+  short: 'Cuántas de las 20 evaluaciones independientes ya se completaron.',
+  slides: [
+    { t: 'Veinte exámenes pequeños', p: 'Cinco particiones, repetidas cuatro veces. Cada una es <b>un mini-examen</b> con datos distintos.', v: V.dots({ n: 20, cols: 10, hot: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] }) },
+    { t: 'Para ver la variación', p: 'Con 20 resultados se calcula el <b>promedio</b> y su <b>ruido</b>. Un solo examen no diría si fue suerte.', v: V.whisk({ min: -1, max: 4.5, rows: [['20 evaluaciones', 1.75, 1.55, '#1f9d3a']], note: 'promedio y variación' }) },
+  ],
+  decide: { eleg: 'Validación cruzada repetida y anidada.', desc: 'La elección de configuración y la evaluación nunca comparten datos.', no: 'Un único reparto: el resultado depende demasiado de cómo cayó el azar.' },
+  ej: { v: '20', l: 'evaluaciones', n: '5 × 4 · real' },
+})
+
+const ANUN = [['a-desbalance', 'DESBALANCE 1:20', 'ambar'], ['a-fuga', 'FUGA BLOQUEADA', 'rojo'], ['a-empate', 'EMPATE EN EL RUIDO', 'ambar'], ['a-prueba', 'PRUEBA ABIERTA', 'verde'], ['a-ic', 'IC INCLUYE 0', 'gris']]
+const MEDS = [['m-recall', 'Recall %', '80.0', '88.8', 'meta 80'], ['m-citados', 'Citados %', '29.0', '88.8'], ['m-extra', 'Casos extra /40', '1.75', '8.88'], ['m-umbral', 'Umbral', '0.504', '8.888'], ['m-eval', 'Evaluación n/20', '20', '88']]
+const ORDEN = ['datos', 'part', 'boveda', 'pipe', 'smote', 'eval', 'modelos', 'sel', 'afil', 'regla', 'modelo', 'umbral', 'citas', 'sin', ...ANUN.map((a) => a[0]), ...MEDS.map((m) => m[0])]
+
+/* ------------------------------------------------------------------ construcción del SVG */
+const $ = (s, r = document) => r.querySelector(s)
+const calmado = matchMedia('(prefers-reduced-motion: reduce)').matches
+const svg = $('#svg')
+const rutaSel = (a) => Object.entries(R).filter(([, r]) => r[0] === a || r[1] === a).map(([id]) => id)
+
+function dibujar() {
+  let s = `<rect class="carril" x="8" y="8" width="984" height="254" rx="8"/><rect class="carril" x="8" y="272" width="984" height="360" rx="8"/>
+    <text class="cl" x="24" y="32">OPERACIÓN DEL PROGRAMA · escenario supuesto</text><text class="cl" x="24" y="296">LABORATORIO · solo entrenamiento</text>`
+  s += Object.entries(R).map(([id, r]) => `<path class="via" d="${r[2]}"/>`).join('')
+  s += Object.entries(R).map(([id, r]) => `<g class="rt ${r[3] ?? ''}" data-r="${id}"><path class="trazo borde" d="${r[2]}"/><path id="p-${id}" class="trazo ruta" d="${r[2]}"/><path class="trazo flujo" d="${r[2]}"/></g>`).join('')
+  const mod = (id, inner, lamp) => {
+    const [x, y, w, h, t] = M[id]
+    return `<g class="mod" data-id="${id}" tabindex="0" role="button" aria-label="${t || 'Variantes'}: ver explicación">
+      <rect class="cara" x="${x}" y="${y}" width="${w}" height="${h}" rx="5"/>
+      <rect class="luz" x="${x - 3}" y="${y - 3}" width="${w + 6}" height="${h + 6}" rx="7"/>
+      ${t ? `<text class="mt" x="${x + 10}" y="${y + 25}">${t}</text>` : ''}
+      ${lamp ? `<circle class="lp ${lamp}" cx="${x + w - 18}" cy="${y + 18}" r="8"/>` : ''}${inner}</g>`
+  }
+  const T = (x, y, c, t) => `<text class="${c}" x="${x}" y="${y}">${t}</text>`
+  s += mod('afil', T(34, 141, 'ms', '1 000 de ejemplo') + T(34, 175, 'ml gr', '49 de 1 000'))
+  s += mod('regla', T(250, 102, 'ms', 'edad ≥ 60 o hipertensión'), 'verde')
+  s += mod('modelo', T(250, 206, 'ml', 'puntaje de 0 a 1'), 'verde')
+  s += mod('umbral', `<circle class="dial" cx="590" cy="196" r="22"/><g transform="translate(590 196)"><g class="perilla"><line class="aguja" x1="0" y1="0" x2="0" y2="-16"/></g></g>`)
+  s += mod('citas', T(750, 110, 'ml', '308 · 38 casos'))
+  s += mod('sin', T(750, 210, 'ml', '11 casos'), 'ambar')
+  s += mod('datos', T(34, 359, 'ms', '5 109 · 249 casos') + T(34, 380, 'ms', 'edad 0.2→16.9 %'))
+  s += mod('part', T(34, 458, 'ml', '80 / 20'))
+  s += mod('boveda', T(34, 558, 'ml', 'abierta una vez') + T(34, 586, 'ms', '1 022 · 50 casos'), 'verde')
+  s += mod('pipe', `${T(240, 368, 'ms', 'imputar · <tspan class="gr">201 nulos</tspan>')}${T(240, 392, 'ms', 'escalar · z')}${T(240, 416, 'ms', 'codificar · one-hot')}`, 'verde')
+  s += mod('smote', T(240, 496, 'ms', 'solo en el fold'))
+  s += mod('eval', T(240, 620, 'ms', 'mismas citas'))
+  const [px, py, pw] = M.modelos
+  let mo = `${T(px + 10, py + 25, 'ml', '5 variantes · 57 conf.')}<text class="ms gr" style="font-size:15px" x="${px + pw - 8}" y="${py + 25}" text-anchor="end">interno · PR-AUC</text><rect class="marco" x="486" y="342" width="278" height="282" rx="4"/>`
+  FILAS.forEach(([n, c, x], i) => {
+    mo += T(492, fy(i) + 20, 'mt', n) + `<text class="ms" x="762" y="${fy(i) + 20}" text-anchor="end">${c} conf.</text>`
+    mo += lampara(i).map((v, j) => `<rect class="lt ${v}" x="${488 + j * 11.5}" y="${fy(i) + 30}" width="8.5" height="14" rx="2"/>`).join('')
+    mo += `<text class="ml${x < 0 ? ' rj' : ''}" x="764" y="${fy(i) + 44}" text-anchor="end">${x > 0 ? '+' : '−'}${Math.abs(x).toFixed(2)}</text>`
+  })
+  s += mod('modelos', mo)
+  s += mod('sel', [['PR-AUC', 'Gradient boosting', 1], ['Casos extra', 'Random forest', 1], ['Regla previa', 'Reg. logística', 0]]
+    .map(([a, b, tach], i) => T(820, 358 + 48 * i, 'ms', a) + T(820, 380 + 48 * i, tach ? 'ml tach' : 'ml gr', b)).join(''))
+  s += Object.keys(BARRA).map((id) => {
+    const [bx, by, bw, bh] = BARRA[id], [x, y, w, h, ls = ['Sellada hasta el final']] = PLACA[id] ?? []
+    return `<g class="mod plc" data-id="${PLACA_ID[id]}" tabindex="0" role="button" aria-label="${ls.join(' ')}: ver explicación"><rect class="barra" x="${bx}" y="${by}" width="${bw}" height="${bh}"/>
+      ${PLACA[id] ? `<rect class="placa" x="${x}" y="${y}" width="${w}" height="${h}" rx="4"/>` : ''}${(PLACA[id] ? ls : []).map((l, j) => `<text class="pl" x="${x + w / 2}" y="${y + (ls.length === 1 ? 25 : 19) + 18 * j}" text-anchor="middle">${l}</text>`).join('')}</g>`
+  }).join('')
+  // paquetes que viajan por las rutas
+  if (!calmado) {
+    s += `<g id="pk">${Object.entries(R).map(([id, r], k) => {
+      if (r[3] === 'lazo') return ''
+      const rojo = r[3] === 'roja'
+      const n = rojo ? 1 : 2
+      return Array.from({ length: n }, (_, j) => `<rect class="${rojo ? 'pkr' : 'pk'}" data-pk="${id}" data-j="${j}" data-k="${k}" x="-7" y="-7" width="14" height="14" rx="3" opacity="0"/>`).join('')
+    }).join('')}</g>`
+  }
+  svg.innerHTML = s
+  svg.insertAdjacentHTML('beforeend', '')
+  // los lazos de validación llevan un solo paquete circular
+  if (!calmado) {
+    svg.querySelectorAll('[data-pk]').forEach((el) => {
+      const id = el.dataset.pk, rojo = R[id][3] === 'roja', j = +el.dataset.j, k = +el.dataset.k
+      const len = $(`#p-${id}`).getTotalLength()
+      const dur = Math.max(1.4, len / 95)
+      const off = ((k * 0.37 + j * dur / 2) % (dur * 2)).toFixed(2)
+      const m = rojo ? 'keyPoints="0;.9;.9" keyTimes="0;.55;1" calcMode="linear"' : ''
+      const o = rojo ? 'values="0;1;1;0" keyTimes="0;.05;.62;1"' : 'values="0;1;1;0" keyTimes="0;.1;.9;1"'
+      el.innerHTML = `<animateMotion dur="${rojo ? 3.2 : dur}s" begin="${off}s" repeatCount="indefinite" ${m}><mpath href="#p-${id}"/></animateMotion><animate attributeName="opacity" dur="${rojo ? 3.2 : dur}s" begin="${off}s" repeatCount="indefinite" ${o}/>`
+    })
+  }
+}
+
+/* anunciadores y medidores */
+$('#anun').innerHTML = ANUN.map(([id, t, c]) => `<li><button class="${c}" data-id="${id}">${t}</button></li>`).join('')
+$('#meds').innerHTML = MEDS.map(([id, lab, v, gh, meta]) => `<button class="med" data-id="${id}"><span class="rot">${lab}</span><span class="lcd"><i class="gh">${gh}</i><i class="dg" data-v="${v}">${v}</i></span>${meta ? `<span class="meta">${meta}</span>` : ''}</button>`).join('')
+
+function contar(el) {
+  const fin = el.dataset.v
+  if (calmado) { el.textContent = fin; return }
+  const dec = (fin.split('.')[1] || '').length, to = parseFloat(fin), t0 = performance.now()
+  const paso = (t) => {
+    const k = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - k, 3)
+    el.textContent = (to * e).toFixed(dec)
+    if (k < 1) requestAnimationFrame(paso)
+  }
+  requestAnimationFrame(paso)
+}
+document.querySelectorAll('.dg').forEach(contar)
+document.querySelectorAll('.med').forEach((b) => b.addEventListener('mouseenter', () => contar($('.dg', b))))
+
+/* ------------------------------------------------------------------ vista previa (hover) */
+const tip = $('#tip')
+let tipEl = null
+function resaltar(id) {
+  const rt = id ? rutaSel(id) : []
+  const rel = new Set(id ? [id] : [])
+  rt.forEach((r) => { rel.add(R[r][0]); rel.add(R[r][1]) })
+  svg.querySelectorAll('.mod').forEach((g) => g.classList.toggle('dim', !!id && !rel.has(g.dataset.id)))
+  svg.querySelectorAll('.rt').forEach((g) => g.classList.toggle('dim', !!id && !rt.includes(g.dataset.r)))
+}
+function verTip(el, id) {
+  const d = E[id]
+  tip.innerHTML = `<small>${d.kicker}</small><b>${d.q}</b><span>${d.short}</span><em>Clic para abrir</em>`
+  const r = (el.querySelector('.cara') || el).getBoundingClientRect()
+  const w = Math.min(290, innerWidth - 16)
+  tip.style.width = w + 'px'
+  const h = tip.offsetHeight
+  let x = r.left + r.width / 2 - w / 2
+  let y = r.top - h - 12
+  if (y < 8) y = r.bottom + 12
+  x = Math.max(8, Math.min(innerWidth - w - 8, x))
+  tip.style.left = x + 'px'
+  tip.style.top = y + 'px'
+  tip.classList.add('on')
+}
+function ocultarTip() { tip.classList.remove('on'); resaltar(null); tipEl = null }
+function ligar(el) {
+  const id = el.dataset.id
+  const on = () => { tipEl = el; verTip(el, id); if (M[id]) resaltar(id) }
+  el.addEventListener('mouseenter', on)
+  el.addEventListener('focus', on)
+  el.addEventListener('mouseleave', ocultarTip)
+  el.addEventListener('blur', ocultarTip)
+  el.addEventListener('click', () => abrir(id))
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(id) } })
+}
+
+/* ------------------------------------------------------------------ lightbox */
+const lb = $('#lb')
+let cur = null, si = 0
+const vis = (s) => `<svg class="vis vis-fade" viewBox="0 0 360 150" role="img" aria-label="${s.t}">${s.v}</svg>`
+function pintarSlide() {
+  const d = E[cur], s = d.slides[si]
+  $('#lb-vis').innerHTML = vis(s)
+  ajustar($('#lb-vis'))
+  $('#lb-txt').innerHTML = `<h3>${s.t}</h3><p>${s.p}</p>`
+  $('#c-prev').disabled = si === 0
+  $('#c-next').disabled = si === d.slides.length - 1
+  $('#c-pts').innerHTML = d.slides.map((_, i) => `<button aria-label="Estado ${i + 1} de ${d.slides.length}" ${i === si ? 'aria-current="true"' : ''} data-i="${i}"></button>`).join('')
+}
+function abrir(id, abrirDialogo = true) {
+  ocultarTip()
+  const d = E[id]
+  cur = id; si = 0
+  const pos = ORDEN.indexOf(id)
+  $('#lb-k').textContent = d.kicker
+  $('#lb-n').textContent = `${pos + 1} / ${ORDEN.length}`
+  $('#lb-q').textContent = d.q
+  $('#lb-dec').innerHTML = `<h4>Qué decidimos y qué descartamos</h4><p class="si">✔ ${d.decide.eleg}</p><p>${d.decide.desc}</p><p class="no">✘ ${d.decide.no}</p>`
+  $('#lb-ej').innerHTML = `<h4>Cifra clave</h4><span class="lcd"><i class="gh">${'8'.repeat(d.ej.v.replace(/[^0-9]/g, '').length || 1)}</i><i class="dg">${d.ej.v}</i></span><span class="lab">${d.ej.l}</span><span class="tag">${d.ej.n}</span>`
+  $('#f-prev').disabled = pos === 0
+  $('#f-next').disabled = pos === ORDEN.length - 1
+  svg.querySelectorAll('.mod').forEach((g) => g.classList.toggle('sel', g.dataset.id === id))
+  pintarSlide()
+  if (abrirDialogo && !lb.open) { svg.pauseAnimations?.(); lb.showModal() }
+}
+const slide = (k) => { const n = si + k; if (n >= 0 && n < E[cur].slides.length) { si = n; pintarSlide() } }
+const fase = (k) => { const n = ORDEN.indexOf(cur) + k; if (ORDEN[n]) abrir(ORDEN[n], false) }
+$('#c-prev').onclick = () => slide(-1)
+$('#c-next').onclick = () => slide(1)
+$('#f-prev').onclick = () => fase(-1)
+$('#f-next').onclick = () => fase(1)
+$('#lb-x').onclick = () => lb.close()
+$('#c-pts').onclick = (e) => { const b = e.target.closest('button'); if (b) { si = +b.dataset.i; pintarSlide() } }
+lb.addEventListener('click', (e) => { if (e.target === lb) lb.close() })
+lb.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') { e.preventDefault(); slide(1) }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); slide(-1) }
+})
+lb.addEventListener('close', () => { svg.unpauseAnimations?.(); svg.querySelectorAll('.sel').forEach((g) => g.classList.remove('sel')) })
+
+dibujar()
+document.querySelectorAll('.mod, .anun button, .med').forEach(ligar)
+// dentro de la web del proyecto (iframe) las teclas K y L se reenvían a la página madre
+addEventListener('keydown', (e) => {
+  if (parent !== window && !lb.open && !e.metaKey && !e.ctrlKey && !e.altKey && 'klf'.includes(e.key)) parent.postMessage({ tecla: e.key }, '*')
+})
+// los textos de cada caja no pueden salirse de ella
+function ajustarTablero() {
+  svg.querySelectorAll('.mod').forEach((g) => {
+    const m = M[g.dataset.id]
+    if (!m || g.classList.contains('plc')) return
+    g.querySelectorAll('text').forEach((t) => {
+      if (t.getAttribute('text-anchor') === 'end') return
+      t.dataset.w = m[0] + m[2] - 8 - +t.getAttribute('x') - (t.classList.contains('mt') && m[4] ? 26 : 0)
+    })
+  })
+  svg.querySelectorAll('.plc').forEach((g) => {
+    const r = g.querySelector('.placa')
+    if (r) g.querySelectorAll('.pl').forEach((t) => { t.dataset.w = +r.getAttribute('width') - 12 })
+  })
+  ajustar(svg)
+}
+document.fonts.ready.then(ajustarTablero)
+</script>
+</body>
+</html>

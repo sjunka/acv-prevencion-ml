@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { laminas, preguntas } from './content'
 import { Foot, Lamina, Portada } from './slides'
 import { Suplemento, TECLAS } from './suplemento'
+import { VistaMaquina } from './maquina'
 import { EscenaTablero } from './tablero'
 import { ESCENAS } from './tablero-datos'
 
@@ -10,11 +11,12 @@ const PRESUPUESTO = 600 // segundos de exposición
 
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b)
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
-// Dos vistas con la misma estructura: las láminas de artículo (por defecto) y el tablero (?vista=tablero, tecla L o botón).
+// Tres vistas: las láminas de artículo (por defecto), el tablero (?vista=tablero, tecla L o botón) y la máquina explicada (?vista=maquina, tecla K).
 const listaDe = (m) => (m === 'tablero' ? ESCENAS : laminas)
 const nPasos = (m, i) => (i >= 1 ? listaDe(m)[i - 1].pasos.length : 1)
 const ultimo = (m, i) => nPasos(m, i) - 1
-const MODO0 = new URLSearchParams(window.location.search).get('vista') === 'tablero' ? 'tablero' : 'laminas'
+const VISTAS = ['tablero', 'maquina']
+const MODO0 = VISTAS.find((v) => v === new URLSearchParams(window.location.search).get('vista')) ?? 'laminas'
 // #3 abre la lámina 3 en su primer paso y #3.2 en el segundo; #s4 abre la pregunta 4 y #st la tabla.
 function leerHash(m) {
   const h = window.location.hash.replace('#', '')
@@ -107,12 +109,13 @@ export default function App() {
     })
   }, [])
   // Alterna la vista y deja la URL en ?vista=tablero para poder compartir el enlace.
-  const cambiarModo = useCallback(() => {
-    const m = modoRef.current === 'tablero' ? 'laminas' : 'tablero'
+  // Sin destino alterna láminas y tablero (desde la máquina vuelve a las láminas); K alterna la máquina.
+  const cambiarModo = useCallback((destino) => {
+    const m = destino ?? (modoRef.current === 'laminas' ? 'tablero' : 'laminas')
     setModo(m)
     setPos((p) => (p.sup ? p : { sup: false, i: p.i, paso: 0, animar: false }))
     const u = new URL(window.location.href)
-    if (m === 'tablero') u.searchParams.set('vista', 'tablero')
+    if (m !== 'laminas') u.searchParams.set('vista', m)
     else u.searchParams.delete('vista')
     window.history.replaceState(null, '', u)
   }, [])
@@ -131,6 +134,8 @@ export default function App() {
       if ((t.tagName === 'BUTTON' || t.tagName === 'A') && (e.key === ' ' || e.key === 'Enter')) return
       const p = posRef.current
       const k = e.key
+      if (k === 'k') return cambiarModo(modoRef.current === 'maquina' ? 'laminas' : 'maquina')
+      if (modoRef.current === 'maquina' && k !== 'l' && k !== 'f') return // la máquina maneja sus propias teclas
       if (k === 'Escape') {
         setAyuda(false)
         setNotas(false)
@@ -171,8 +176,14 @@ export default function App() {
       } else if (k === 'Home') setPos({ sup: false, i: 0, paso: 0, animar: false })
       else if (k === 'End') setPos({ sup: false, i: TOTAL, paso: ultimo(modoRef.current, TOTAL), animar: false })
     }
+    // las teclas K, L y F pulsadas dentro del iframe de la máquina llegan como mensaje
+    const onMsg = (e) => e.data?.tecla && onKey({ key: e.data.tecla, target: document.body })
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('message', onMsg)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('message', onMsg)
+    }
   }, [ir, abrirSup, cerrarSup, cambiarModo])
 
   const tiempo = reloj && t0 !== null ? `${mmss((Date.now() - t0) / 1000)} / ${mmss(PRESUPUESTO)}` : null
@@ -212,7 +223,9 @@ export default function App() {
 
   return (
     <main className={`deck${doc ? ' doc' : ''}`}>
-      {todas ? (
+      {modo === 'maquina' ? (
+        <VistaMaquina />
+      ) : todas ? (
         <>
           <Portada animar={false} onStart={() => setPos({ sup: false, i: 1, paso: 0, animar: true })} />
           {laminas.map((l, i) => lamina(i, l.pasos.length - 1, false))}
@@ -232,9 +245,9 @@ export default function App() {
 
       {/* Botón flotante de solo icono: muestra la vista a la que lleva; la tecla L hace lo mismo */}
       {!imprimiendo && !vistaImprimir && (
-        <button type="button" className="fab-vista" onClick={cambiarModo} aria-label={modo === 'tablero' ? 'Ver láminas (L)' : 'Ver tablero (L)'} title={modo === 'tablero' ? 'Ver láminas (L)' : 'Ver tablero (L)'}>
+        <button type="button" className="fab-vista" onClick={() => cambiarModo()} aria-label={modo === 'laminas' ? 'Ver tablero (L)' : 'Ver láminas (L)'} title={modo === 'laminas' ? 'Ver tablero (L)' : 'Ver láminas (L)'}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            {modo === 'tablero' ? <path d="M4 5h16v11H4zM9 20h6M12 16v4" /> : <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />}
+            {modo !== 'laminas' ? <path d="M4 5h16v11H4zM9 20h6M12 16v4" /> : <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />}
           </svg>
         </button>
       )}
@@ -263,7 +276,7 @@ export default function App() {
         <aside className="hud ayuda" aria-label="Atajos de teclado">
           <div><kbd>→</kbd> <kbd>←</kbd> paso siguiente y anterior (también clicker)</div>
           <div><kbd>S</kbd> material suplementario · <kbd>1</kbd>-<kbd>0</kbd> <kbd>A</kbd>-<kbd>E</kbd> abren cada pregunta</div>
-          <div><kbd>N</kbd> guion de la escena · <kbd>L</kbd> cambia entre tablero y láminas</div>
+          <div><kbd>N</kbd> guion de la escena · <kbd>L</kbd> cambia entre tablero y láminas · <kbd>K</kbd> máquina explicada</div>
           <div><kbd>T</kbd> reloj de 10 minutos · <kbd>R</kbd> reiniciar</div>
           <div><kbd>F</kbd> pantalla completa · <kbd>Esc</kbd> cerrar</div>
         </aside>

@@ -976,3 +976,6 @@ body:has(.deck.doc) {
 .fab-vista svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 @media (prefers-reduced-motion: reduce) { .fab-vista { transition: none; } }
 @media print { .fab-vista { display: none; } }
+
+/* Vista K: el HTML de la máquina explicada ocupa toda la ventana */
+.vista-maquina { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #dcdfe1; }
