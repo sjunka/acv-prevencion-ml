@@ -24,6 +24,8 @@ Siete láminas más un material suplementario con las preguntas probables. Cada 
 | `S` | material suplementario (preguntas y tabla de modelos); `1` a `9`, `0` y `A` a `E` abren cada pregunta |
 | `N` | guion de la lámina, con lo que agrega el paso actual |
 | `T` / `R` | reloj de 10 minutos / reiniciarlo |
+| `L` | cambia entre láminas y tablero; conserva el clic en que estás (si la otra vista tiene menos pasos, queda en su último) |
+| `K` | máquina explicada; al volver, la lámina sale en su primer clic |
 | `F` | pantalla completa |
 | `?` | ayuda |
 
