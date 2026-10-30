@@ -113,7 +113,7 @@ export default function App() {
   const cambiarModo = useCallback((destino) => {
     const m = destino ?? (modoRef.current === 'laminas' ? 'tablero' : 'laminas')
     setModo(m)
-    setPos((p) => (p.sup ? p : { sup: false, i: p.i, paso: 0, animar: false }))
+    setPos((p) => (p.sup ? p : { sup: false, i: p.i, paso: Math.min(p.paso, ultimo(m, p.i)), animar: false })) // conserva el clic al cambiar de vista
     const u = new URL(window.location.href)
     if (m !== 'laminas') u.searchParams.set('vista', m)
     else u.searchParams.delete('vista')
