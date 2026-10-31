@@ -193,7 +193,7 @@ export default function App() {
   const footSup = (
     <footer className="foot">
       <p className="legend" style={{ alignSelf: 'end', margin: 0, fontSize: 'calc(var(--u) * 2.4)' }}>
-        Teclas 1 a 9, 0 y A a E abren cada pregunta; ↑ ↓ las recorren; Tab cambia a la tabla; S o Esc vuelven a la lámina.
+        Teclas 1 a 9, 0, A a E y G abren cada pregunta; ↑ ↓ las recorren; Tab cambia a la tabla; S o Esc vuelven a la lámina.
       </p>
       <div className="nav">
         <button className="link-s" onClick={cerrarSup}>
@@ -275,7 +275,7 @@ export default function App() {
       {!todas && ayuda && (
         <aside className="hud ayuda" aria-label="Atajos de teclado">
           <div><kbd>→</kbd> <kbd>←</kbd> paso siguiente y anterior (también clicker)</div>
-          <div><kbd>S</kbd> material suplementario · <kbd>1</kbd>-<kbd>0</kbd> <kbd>A</kbd>-<kbd>E</kbd> abren cada pregunta</div>
+          <div><kbd>S</kbd> material suplementario · <kbd>1</kbd>-<kbd>0</kbd> <kbd>A</kbd>-<kbd>E</kbd> <kbd>G</kbd> abren cada pregunta</div>
           <div><kbd>N</kbd> guion de la escena · <kbd>L</kbd> cambia entre tablero y láminas · <kbd>K</kbd> máquina explicada</div>
           <div><kbd>T</kbd> reloj de 10 minutos · <kbd>R</kbd> reiniciar</div>
           <div><kbd>F</kbd> pantalla completa · <kbd>Esc</kbd> cerrar</div>

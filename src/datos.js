@@ -29,6 +29,7 @@ export const factores = Object.entries(R.factores)
   .sort((a, b) => b.shap - a.shap)
 export const pesoEdad = R.factores.age.shap / factores.reduce((s, f) => s + f.shap, 0)
 export const eda = R.eda
+export const sesgo = R.sesgo // recall por grupo de edad con un umbral único y con un umbral por edad (notebook, sección 9)
 
 // Recall fuera de fold que logra el modelo al citar al x % (x entre 0 y 1), por interpolación de la curva
 export function recallAl(x) {

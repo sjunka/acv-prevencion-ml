@@ -99,7 +99,7 @@
     "roc_auc": 0.8385,
     "recall": 0.7953,
     "precision": 0.1318,
-    "citados": 0.2948,
+    "citados": 0.2949,
     "extra": 1.55,
     "extra_sd": 1.8202,
     "supera": 0.75,
@@ -949,5 +949,101 @@
   "cat__smoking_status_formerly smoked": -0.0016,
   "cat__smoking_status_never smoked": -0.3286,
   "cat__smoking_status_smokes": 0.2003
+ },
+ "sesgo": {
+  "cv": {
+   "Regla actual": {
+    "casos_joven": 11.2,
+    "recall": 0.779,
+    "citados": 0.308,
+    "recall_joven": 0.205,
+    "recall_mayor": 1.0,
+    "citados_joven": 0.053,
+    "citados_mayor": 1.0,
+    "recall_joven_sd": 0.098
+   },
+   "Modelo": {
+    "casos_joven": 11.2,
+    "recall": 0.796,
+    "citados": 0.291,
+    "recall_joven": 0.293,
+    "recall_mayor": 0.993,
+    "citados_joven": 0.05,
+    "citados_mayor": 0.944,
+    "recall_joven_sd": 0.157
+   },
+   "Modelo + umbral por edad": {
+    "casos_joven": 11.2,
+    "recall": 0.798,
+    "citados": 0.345,
+    "recall_joven": 0.789,
+    "recall_mayor": 0.803,
+    "citados_joven": 0.235,
+    "citados_mayor": 0.642,
+    "recall_joven_sd": 0.122
+   },
+   "Sin reflejos de la edad": {
+    "casos_joven": 11.2,
+    "recall": 0.793,
+    "citados": 0.285,
+    "recall_joven": 0.306,
+    "recall_mayor": 0.983,
+    "citados_joven": 0.053,
+    "citados_mayor": 0.915,
+    "recall_joven_sd": 0.15
+   },
+   "Sin reflejos de la edad + umbral por edad": {
+    "casos_joven": 11.2,
+    "recall": 0.801,
+    "citados": 0.34,
+    "recall_joven": 0.765,
+    "recall_mayor": 0.817,
+    "citados_joven": 0.223,
+    "citados_mayor": 0.657,
+    "recall_joven_sd": 0.112
+   }
+  },
+  "casos_joven_train": 56,
+  "peso_edad": 0.6282,
+  "peso_edad_sin_reflejos": 0.7064,
+  "umbrales": {
+   "unico": 0.504,
+   "joven": 0.2676,
+   "mayor": 0.7046
+  },
+  "oof": {
+   "unico": {
+    "recall": 0.804,
+    "citados": 0.2846,
+    "recall_joven": 0.3393,
+    "recall_mayor": 0.986,
+    "citados_joven": 0.0489,
+    "citados_mayor": 0.9237
+   },
+   "por_edad": {
+    "recall": 0.804,
+    "citados": 0.3604,
+    "recall_joven": 0.8036,
+    "recall_mayor": 0.8042,
+    "citados_joven": 0.2659,
+    "citados_mayor": 0.6167
+   }
+  },
+  "prueba": {
+   "casos_joven": 12,
+   "casos_mayor": 38,
+   "unico": {
+    "recall": 0.8,
+    "citados": 0.2896,
+    "joven": 2,
+    "mayor": 38
+   },
+   "por_edad": {
+    "recall": 0.82,
+    "citados": 0.3601,
+    "joven": 5,
+    "mayor": 36
+   }
+  }
  }
 }

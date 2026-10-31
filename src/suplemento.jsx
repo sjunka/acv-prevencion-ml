@@ -1,8 +1,8 @@
 import { preguntas, repro } from './content'
 import { dec, familias, gana, mas, pct, regla } from './datos'
 
-// Una tecla por pregunta: 1 a 9, 0 y luego A a E (App.jsx las lee)
-export const TECLAS = '1234567890abcde'
+// Una tecla por pregunta: 1 a 9, 0, A a E y G (F es pantalla completa; App.jsx las lee)
+export const TECLAS = '1234567890abcdeg'
 
 export function Suplemento({ tab, q, setTab, setQ, foot }) {
   const cur = preguntas[Math.min(q, preguntas.length - 1)]
@@ -46,6 +46,7 @@ export function Suplemento({ tab, q, setTab, setQ, foot }) {
                   <a href={repro.pdf} target="_blank" rel="noreferrer">
                     Láminas en PDF
                   </a>
+                  <a href="./about/">Cómo se hizo</a>
                 </div>
               </div>
             </>

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/check-leaks.mjs",
+    "build": "vite build && mkdir -p dist/about && cp dist/index.html dist/about/index.html && node scripts/check-leaks.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "pdf": "node scripts/pdf.mjs",

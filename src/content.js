@@ -1,7 +1,7 @@
 // Texto de la sustentación (10 min + 3 de preguntas). Las cifras vienen de datos.js, no se teclean aquí.
 import {
   curvas, datos, dec, eda, fam, gana, grupo, mas, mejorNegocio, mejorPrAuc, miles, operacion, pct, pesoEdad, prueba,
-  recallAl, regla, umbral,
+  recallAl, regla, sesgo, umbral,
 } from './datos'
 
 const lr = fam('Regresión logística')
@@ -16,6 +16,8 @@ const dosDeTres = 1 - jovenes.recall_cv // casos de 18 a 59 años que el modelo 
 const mil = (x) => Math.round(x * 1000) // escala de la Fig. 1: 1 000 afiliados
 const casos1000 = mil(datos.prevalencia)
 const captados1000 = Math.round(casos1000 * regla.recall)
+const unico = sesgo.cv.Modelo
+const porEdad = sesgo.cv['Modelo + umbral por edad'] // umbral por grupo de edad (notebook, sección 9)
 const brecha = (recallAl(regla.citados) - regla.recall) * 100 // puntos de recall con las mismas citas que la regla
 
 export const fases = [
@@ -179,7 +181,7 @@ export const laminas = [
     fase: 'conclusion',
     seg: 60,
     titulo: 'Una mejora real, moderada y bien medida.',
-    pasos: ['Resultado, con la tabla de puntos de operación.', 'Lo interesante.', 'Límites y siguiente paso.'],
+    pasos: ['Resultado, con la tabla de puntos de operación.', 'Lo interesante.', 'Límites y sesgo por edad.'],
     puntos: [
       {
         t: 'Resultado',
@@ -190,8 +192,8 @@ export const laminas = [
         d: 'La métrica estándar (PR-AUC) habría elegido el modelo que más cita, y las diferencias entre modelos caben en el ruido.',
       },
       {
-        t: 'Límites y siguiente paso',
-        d: `La etiqueta dice quién ya tuvo un ACV, no quién lo tendrá, y bajo 60 años el modelo capta solo ${dec(jovenes.recall_cv)}. Siguiente paso: una etiqueta posterior a una fecha de corte y datos de la EPS.`,
+        t: 'Límites y sesgo por edad',
+        d: `La etiqueta dice quién ya tuvo un ACV, no quién lo tendrá, y bajo 60 años el modelo capta solo ${dec(jovenes.recall_cv)}. Un umbral por edad deja ambos grupos cerca de 0.80, citando al ${pct(porEdad.citados)} en vez del ${pct(unico.citados)}.`,
       },
     ],
     notas: [
@@ -262,6 +264,10 @@ export const preguntas = [
   {
     q: '¿Es legal usar estos datos?',
     a: 'Para el curso sí: uso educativo. En producción hay que reentrenar con datos de la EPS y contar con autorización de los titulares (Ley 1581 de 2012).',
+  },
+  {
+    q: '¿Cómo reduces el sesgo por edad?',
+    a: `Con un umbral por grupo de edad. En la CV anidada, el recall bajo 60 años sube de ${dec(unico.recall_joven)} a ${dec(porEdad.recall_joven)} y en mayores baja a ${dec(porEdad.recall_mayor)}, citando al ${pct(porEdad.citados)} en vez del ${pct(unico.citados)}. Quitar las variables que reflejan la edad no ayudó.`,
   },
 ]
 

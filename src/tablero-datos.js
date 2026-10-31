@@ -138,7 +138,7 @@ const DEF = [
       { t: `Con las mismas citas, ${p.casos_extra === 1 ? 'un caso más' : `${p.casos_extra} casos más`}, y el intervalo va de ${ic.casos_extra[0]} a ${ic.casos_extra[1]}. La prueba confirma el rumbo pero no lo demuestra: la evidencia principal es la anidada.`, mods: ['boveda', 'modelo'], med: { extra: String(p.casos_extra) }, ann: ['ic'] },
       { t: `Límite: bajo 60 años el modelo capta solo el ${pct(jov.recall_cv, 0)} de los casos (la regla, el ${pct(jov.recall_regla_cv, 0)}). Casi 2 de cada 3 quedan sin cita.`, ruta: ['umbral-fuera'], mods: ['umbral', 'sin'], lec: { sin: `bajo 60: ${pct(1 - jov.recall_cv, 0)}` }, lamp: { sin: 'ambar' } },
       { t: `Límite: la etiqueta dice quién ya tuvo un ACV, no quién lo tendrá. Además, la edad pesa el ${pct(pesoEdad, 0)} del modelo.`, mods: ['datos', 'modelo'], lec: { datos2: 'etiqueta pasada', modelo: `edad ${pct(pesoEdad, 0)}` } },
-      { t: 'Una mejora real, moderada y bien medida. Siguiente paso: una etiqueta posterior a una fecha de corte y datos reales de la EPS.', mods: ['afil', 'regla', 'modelo', 'umbral', 'citas', 'sin', 'datos', 'part', 'boveda', 'pipe', 'smote', 'eval', 'modelos', 'sel'] },
+      { t: 'Una mejora real, moderada y bien medida. Siguiente paso: un umbral por edad para los menores de 60, una etiqueta posterior a una fecha de corte y datos reales de la EPS.', mods: ['afil', 'regla', 'modelo', 'umbral', 'citas', 'sin', 'datos', 'part', 'boveda', 'pipe', 'smote', 'eval', 'modelos', 'sel'] },
     ],
   },
 ]

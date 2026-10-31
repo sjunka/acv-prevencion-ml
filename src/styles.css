@@ -497,6 +497,11 @@ button {
   gap: calc(var(--u) * 5);
   width: 100%;
 }
+/* los dos paneles se reparten el ancho: con su ancho propio el panel b se salía por la derecha (lámina 6) */
+.dos > .svg {
+  flex: 1 1 0;
+  min-width: 0;
+}
 
 /* ---------- tablas de revista ---------- */
 .tabla {
