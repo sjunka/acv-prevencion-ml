@@ -62,6 +62,7 @@ export function Acerca() {
         <p className="ac-who">{portada.autor} · Octubre de 2026</p>
         <nav className="ac-acciones" aria-label="Archivos principales">
           <a className="ac-btn ac-btn-1" href={raiz}>Ver la presentación</a>
+          <a className="ac-btn" href={`${raiz}proyecto-final.pdf`} download>Documento del proyecto (PDF)</a>
           <a className="ac-btn" href={`${raiz}proyecto.html`} target="_blank" rel="noreferrer">Notebook (HTML)</a>
           <a className="ac-btn" href={`${raiz}proyecto.ipynb`} download>Notebook (.ipynb)</a>
           <a className="ac-btn" href={`${raiz}sustentacion.pdf`} download>Láminas en PDF</a>
@@ -171,6 +172,15 @@ export function Acerca() {
         </ul>
         <p>
           Otras dos vistas de la misma presentación: el <a href={`${raiz}?vista=tablero`}>tablero</a> (tecla L), que recorre el método como una máquina, y la <a href={`${raiz}?vista=maquina`}>máquina explicada</a> (tecla K), con el porqué de cada decisión. La tecla S abre las preguntas probables.
+        </p>
+      </section>
+
+      <section className="ac-sec">
+        <h2>El documento</h2>
+        <p>
+          El proyecto final en 6 páginas: pregunta y objetivos, datos, metodología, resultados (con el sesgo por edad), literatura, plan, ética y aspectos legales.{' '}
+          <a href={`${raiz}proyecto-final.pdf`} target="_blank" rel="noreferrer">Abrir</a> ·{' '}
+          <a href={`${raiz}proyecto-final.pdf`} download>Descargar PDF</a>
         </p>
       </section>
 

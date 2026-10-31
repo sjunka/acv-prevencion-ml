@@ -4,7 +4,7 @@ Proyecto final de **ST1613 Aprendizaje de Máquina Aplicado** (Universidad EAFIT
 
 Un programa de prevención solo puede citar cada mes a una parte de sus afiliados. ¿Puede un modelo escoger mejor a quién citar que la regla «edad ≥ 60 o hipertensión», y encontrar al menos el 80 % de los casos de accidente cerebrovascular (ACV) citando a menos gente?
 
-**Entrada principal: https://sjunka.github.io/acv-prevencion-ml/about/**. Ahí está qué se hizo y cómo, los datos, las láminas, el notebook para ver y descargar, y el enlace a la presentación.
+**Entrada principal: https://sjunka.github.io/acv-prevencion-ml/about/**. Ahí está qué se hizo y cómo, los datos, las láminas, el documento del proyecto en PDF, el notebook para ver y descargar, y el enlace a la presentación.
 
 [![Página /about](public/capturas/about.png)](https://sjunka.github.io/acv-prevencion-ml/about/)
 
@@ -19,7 +19,8 @@ Un programa de prevención solo puede citar cada mes a una parte de sus afiliado
 
 | Dirección | Qué es |
 |---|---|
-| [`/about/`](https://sjunka.github.io/acv-prevencion-ml/about/) | Qué se hizo y cómo, sesgo por edad, datos, láminas en miniatura, notebook y descargas |
+| [`/about/`](https://sjunka.github.io/acv-prevencion-ml/about/) | Qué se hizo y cómo, sesgo por edad, datos, láminas en miniatura, documento, notebook y descargas |
+| [`proyecto-final.pdf`](https://sjunka.github.io/acv-prevencion-ml/proyecto-final.pdf) | Documento del proyecto final (6 páginas) |
 | [`/`](https://sjunka.github.io/acv-prevencion-ml/) | La presentación: 7 láminas, 23 clics, unos 10 minutos |
 | [`?vista=tablero`](https://sjunka.github.io/acv-prevencion-ml/?vista=tablero) | El mismo recorrido como un tablero de dos carriles (tecla `L`) |
 | [`?vista=maquina`](https://sjunka.github.io/acv-prevencion-ml/?vista=maquina) | Máquina explicada: el porqué de cada decisión (tecla `K`) |
